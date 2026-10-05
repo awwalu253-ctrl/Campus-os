@@ -13,10 +13,10 @@
     {% for e in form.email.errors %}<small class="form__error">{{ e }}</small>{% endfor %}
   </label>
 
-  {{ form.submit(class="btn btn--primary btn--block") }}
+  {{ form.submit(class="btn btn--primary btn--block btn--lg") }}
 </form>
 
-<p class="muted" style="margin-top: var(--sp-4); text-align:center;">
-  <a href="{{ url_for('auth.login') }}">Back to sign in</a>
+<p class="muted" style="margin-top: var(--sp-5); text-align: center; font-size: var(--fs-sm);">
+  <a href="{{ url_for('auth.login') }}" style="font-weight: 600;">Back to sign in</a>
 </p>
 {% endblock %}

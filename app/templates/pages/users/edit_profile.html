@@ -1,9 +1,11 @@
 {% extends "layouts/app_shell.html" %}
 {% block title %}Edit profile{% endblock %}
 {% block content %}
-<section class="card">
-  <h1>Edit profile</h1>
 
+<h1 style="font-size: var(--fs-2xl);">Edit profile</h1>
+<p class="muted" style="margin-bottom: var(--sp-5);">Update your personal information.</p>
+
+<section class="card card--pad-lg">
   <form method="post" novalidate class="form">
     {{ form.hidden_tag() }}
 
@@ -15,12 +17,15 @@
 
     <label class="form__field">
       <span>{{ form.phone.label.text }}</span>
-      {{ form.phone() }}
+      {{ form.phone(placeholder="+234 800 000 0000") }}
       {% for e in form.phone.errors %}<small class="form__error">{{ e }}</small>{% endfor %}
     </label>
 
-    {{ form.submit(class="btn btn--primary") }}
-    <a class="btn btn--ghost" href="{{ url_for('users.profile') }}">Cancel</a>
+    <div class="row" style="gap: var(--sp-2);">
+      <a class="btn btn--ghost" href="{{ url_for('users.profile') }}">Cancel</a>
+      {{ form.submit(class="btn btn--primary") }}
+    </div>
   </form>
 </section>
+
 {% endblock %}

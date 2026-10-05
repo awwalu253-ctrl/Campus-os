@@ -9,16 +9,16 @@
 
   <label class="form__field">
     <span>{{ form.password.label.text }}</span>
-    {{ form.password(autocomplete="new-password") }}
+    {{ form.password(autocomplete="new-password", placeholder="At least 8 characters") }}
     {% for e in form.password.errors %}<small class="form__error">{{ e }}</small>{% endfor %}
   </label>
 
   <label class="form__field">
     <span>{{ form.confirm.label.text }}</span>
-    {{ form.confirm(autocomplete="new-password") }}
+    {{ form.confirm(autocomplete="new-password", placeholder="Type it again") }}
     {% for e in form.confirm.errors %}<small class="form__error">{{ e }}</small>{% endfor %}
   </label>
 
-  {{ form.submit(class="btn btn--primary btn--block") }}
+  {{ form.submit(class="btn btn--primary btn--block btn--lg") }}
 </form>
 {% endblock %}

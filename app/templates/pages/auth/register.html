@@ -21,7 +21,7 @@
 
   <label class="form__field">
     <span>{{ form.phone.label.text }}</span>
-    {{ form.phone(autocomplete="tel", inputmode="tel", placeholder="+234 ...") }}
+    {{ form.phone(autocomplete="tel", inputmode="tel", placeholder="+234 800 000 0000") }}
     {% for e in form.phone.errors %}<small class="form__error">{{ e }}</small>{% endfor %}
   </label>
 
@@ -33,7 +33,7 @@
 
   <label class="form__field">
     <span>{{ form.confirm.label.text }}</span>
-    {{ form.confirm(autocomplete="new-password") }}
+    {{ form.confirm(autocomplete="new-password", placeholder="Type it again") }}
     {% for e in form.confirm.errors %}<small class="form__error">{{ e }}</small>{% endfor %}
   </label>
 
@@ -43,10 +43,11 @@
   </label>
   {% for e in form.accept_terms.errors %}<small class="form__error">{{ e }}</small>{% endfor %}
 
-  {{ form.submit(class="btn btn--primary btn--block") }}
+  {{ form.submit(class="btn btn--primary btn--block btn--lg") }}
 </form>
 
-<p class="muted" style="margin-top: var(--sp-4); text-align:center;">
-  Already have an account? <a href="{{ url_for('auth.login') }}">Sign in</a>
+<p class="muted" style="margin-top: var(--sp-5); text-align: center; font-size: var(--fs-sm);">
+  Already have an account?
+  <a href="{{ url_for('auth.login') }}" style="font-weight: 600;">Sign in</a>
 </p>
 {% endblock %}

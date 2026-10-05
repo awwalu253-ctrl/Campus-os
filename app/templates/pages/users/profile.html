@@ -1,18 +1,54 @@
 {% extends "layouts/app_shell.html" %}
 {% block title %}Profile{% endblock %}
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/onboarding.css') }}">
+{% endblock %}
 {% block content %}
-<section class="card">
-  <h1>{{ current_user.display_name }}</h1>
-  <p class="muted">{{ current_user.email }}</p>
-  {% if current_user.phone %}<p class="muted">{{ current_user.phone }}</p>{% endif %}
 
-  <p style="margin-top: var(--sp-4);">
-    <a class="btn btn--ghost" href="{{ url_for('users.edit_profile') }}">Edit profile</a>
-  </p>
+<section class="profile-header">
+  <span class="avatar avatar--lg">{{ current_user.display_name[:1]|upper }}</span>
+  <div class="grow">
+    <h1 class="profile-header__name">{{ current_user.display_name }}</h1>
+    <p class="profile-header__email">{{ current_user.email }}</p>
+  </div>
+</section>
 
-  <form method="post" action="{{ url_for('auth.logout') }}" style="margin-top: var(--sp-3);">
+<ul class="profile-list">
+  <li>
+    <a class="profile-list__row" href="{{ url_for('users.edit_profile') }}">
+      <span class="profile-list__left">
+        <span class="profile-list__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z"/>
+          </svg>
+        </span>
+        <span>Edit profile</span>
+      </span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+    </a>
+  </li>
+  {% if current_user.profile %}
+    <li>
+      <div class="profile-list__row">
+        <span class="profile-list__left">
+          <span class="profile-list__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 10.5 12 3l9 7.5"/><path d="M5 10v10h14V10"/>
+            </svg>
+          </span>
+          <span>Campus</span>
+        </span>
+        <span class="muted" style="font-size: var(--fs-sm);">Set</span>
+      </div>
+    </li>
+  {% endif %}
+</ul>
+
+<section style="margin-top: var(--sp-4);">
+  <form method="post" action="{{ url_for('auth.logout') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button type="submit" class="btn btn--ghost">Sign out</button>
+    <button type="submit" class="btn btn--ghost btn--block">Sign out</button>
   </form>
 </section>
+
 {% endblock %}

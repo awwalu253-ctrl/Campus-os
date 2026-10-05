@@ -1,21 +1,53 @@
-{% extends "layouts/auth.html" %}
+{% extends "base.html" %}
+{% block body_class %}page-onboarding{% endblock %}
 {% block title %}Choose your department{% endblock %}
-{% block content %}
-<h1>Your department</h1>
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/onboarding.css') }}">
+{% endblock %}
+{% block body %}
+<main class="onboarding">
+  <div class="onboarding__head">
+    <a href="{{ url_for('web.landing') }}" class="onboarding__brand">
+      <span>Campus OS</span>
+    </a>
+    <div class="stepper" aria-label="Step 4 of 6">
+      <span class="stepper__dot is-done"></span>
+      <span class="stepper__dot is-done"></span>
+      <span class="stepper__dot is-done"></span>
+      <span class="stepper__dot is-current"></span>
+      <span class="stepper__dot"></span>
+      <span class="stepper__dot"></span>
+    </div>
+  </div>
 
-<form method="post" action="{{ url_for('universities.set_department') }}" class="form">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <section class="onboarding__card">
+    <h1>Your department</h1>
+    <p class="muted">Which department are you in?</p>
 
-  <label class="form__field">
-    <span>Department</span>
-    <select name="department_id" required>
-      <option value="" disabled selected>Select your department</option>
-      {% for d in departments %}
-        <option value="{{ d.id }}">{{ d.name }}</option>
-      {% endfor %}
-    </select>
-  </label>
+    <form method="post" action="{{ url_for('universities.set_department') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-  <button type="submit" class="btn btn--primary btn--block">Continue</button>
-</form>
+      <div class="option-list" role="radiogroup">
+        {% for d in departments %}
+          <label class="option">
+            <input type="radio" name="department_id" value="{{ d.id }}" required>
+            <span class="grow">
+              <span class="option__label">{{ d.name }}</span>
+              {% if d.code %}<span class="option__meta">{{ d.code }}</span>{% endif %}
+            </span>
+            <span class="option__check">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            </span>
+          </label>
+        {% endfor %}
+      </div>
+
+      <button type="submit" class="btn btn--primary btn--block btn--lg" style="margin-top: var(--sp-5);">
+        Continue
+      </button>
+    </form>
+  </section>
+
+  <div class="onboarding__foot">Step 4 of 6</div>
+</main>
 {% endblock %}

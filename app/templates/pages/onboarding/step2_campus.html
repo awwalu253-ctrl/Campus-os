@@ -1,21 +1,52 @@
-{% extends "layouts/auth.html" %}
+{% extends "base.html" %}
+{% block body_class %}page-onboarding{% endblock %}
 {% block title %}Choose your campus{% endblock %}
-{% block content %}
-<h1>Which campus?</h1>
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/onboarding.css') }}">
+{% endblock %}
+{% block body %}
+<main class="onboarding">
+  <div class="onboarding__head">
+    <a href="{{ url_for('web.landing') }}" class="onboarding__brand">
+      <span>Campus OS</span>
+    </a>
+    <div class="stepper" aria-label="Step 2 of 6">
+      <span class="stepper__dot is-done"></span>
+      <span class="stepper__dot is-current"></span>
+      <span class="stepper__dot"></span>
+      <span class="stepper__dot"></span>
+      <span class="stepper__dot"></span>
+      <span class="stepper__dot"></span>
+    </div>
+  </div>
 
-<form method="post" action="{{ url_for('universities.set_campus') }}" class="form">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <section class="onboarding__card">
+    <h1>Which campus?</h1>
+    <p class="muted">Pick the campus you spend most of your time on.</p>
 
-  <label class="form__field">
-    <span>Campus</span>
-    <select name="campus_id" required>
-      <option value="" disabled selected>Select your campus</option>
-      {% for c in campuses %}
-        <option value="{{ c.id }}">{{ c.name }}</option>
-      {% endfor %}
-    </select>
-  </label>
+    <form method="post" action="{{ url_for('universities.set_campus') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-  <button type="submit" class="btn btn--primary btn--block">Continue</button>
-</form>
+      <div class="option-list" role="radiogroup">
+        {% for c in campuses %}
+          <label class="option">
+            <input type="radio" name="campus_id" value="{{ c.id }}" required>
+            <span class="grow">
+              <span class="option__label">{{ c.name }}</span>
+            </span>
+            <span class="option__check">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            </span>
+          </label>
+        {% endfor %}
+      </div>
+
+      <button type="submit" class="btn btn--primary btn--block btn--lg" style="margin-top: var(--sp-5);">
+        Continue
+      </button>
+    </form>
+  </section>
+
+  <div class="onboarding__foot">Step 2 of 6</div>
+</main>
 {% endblock %}
