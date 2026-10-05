@@ -1,5 +1,10 @@
-"""Celery entrypoint:  celery -A tasks.celery_app.celery worker -l info -B"""
+"""Celery entrypoint:  celery -A tasks.celery_app.celery worker -l info"""
+import os
 from celery import Celery
+
+# Ensure FLASK_ENV is production on Render
+os.environ.setdefault("FLASK_ENV", "production")
+
 from app import create_app
 
 flask_app = create_app()
@@ -25,5 +30,4 @@ celery.conf.update(
     },
 )
 
-# Import tasks so they register
 from app.pulse import tasks as _pulse_tasks  # noqa: E402,F401

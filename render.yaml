@@ -1,15 +1,20 @@
 services:
+  # ── Web service ──────────────────────────────────────
   - type: web
     name: campus-os
     runtime: python
-    plan: starter
+    plan: starter                       # ~$7/mo; free tier also works but spins down
+    region: oregon                      # pick closest to Nigeria: frankfurt or oregon
     buildCommand: "pip install -r requirements.txt && flask db upgrade"
-    startCommand: "gunicorn wsgi:app --workers 2 --threads 4 --timeout 60 --bind 0.0.0.0:$PORT"
+    startCommand: "gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 60"
+    healthCheckPath: /healthz
     envVars:
       - key: FLASK_ENV
         value: production
       - key: SECRET_KEY
         generateValue: true
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
       - key: DATABASE_URL
         fromDatabase:
           name: campus-os-db
@@ -19,15 +24,96 @@ services:
           type: redis
           name: campus-os-redis
           property: connectionString
-      - key: SESSION_COOKIE_SECURE
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: campus-os-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: campus-os-redis
+          property: connectionString
+      - key: MAPBOX_TOKEN
+        sync: false                     # set this in Render dashboard, don't commit
+      - key: POSTGIS_ENABLED
         value: "true"
 
+  # ── Celery worker ────────────────────────────────────
+  - type: worker
+    name: campus-os-worker
+    runtime: python
+    plan: starter                       # background workers have no free tier
+    region: oregon
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "celery -A tasks.celery_app.celery worker -l info --concurrency=2"
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: campus-os-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: campus-os-redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: campus-os-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: campus-os-redis
+          property: connectionString
+
+  # ── Celery beat ──────────────────────────────────────
+  - type: worker
+    name: campus-os-beat
+    runtime: python
+    plan: starter
+    region: oregon
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "celery -A tasks.celery_app.celery beat -l info"
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: campus-os-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: campus-os-redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: campus-os-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: campus-os-redis
+          property: connectionString
+
+  # ── Redis ────────────────────────────────────────────
   - type: redis
     name: campus-os-redis
-    plan: starter
-    ipAllowList: []
+    plan: starter                       # ~$7/mo; no free Redis on Render
+    region: oregon
+    ipAllowList: []                     # internal-only
 
 databases:
   - name: campus-os-db
-    plan: basic-256mb
+    plan: basic-256mb                   # ~$6/mo; supports PostGIS
+    region: oregon
     postgresMajorVersion: "16"
