@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block body_class %}page-admin{% endblock %}
+{% block body %}
+<div class="app-shell">
+  <header class="topbar">
+    <a href="{{ url_for('admin.dashboard') }}" class="topbar__brand">
+      <span>Campus OS - Admin</span>
+    </a>
+  </header>
+  <main class="app-main">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% endblock %}

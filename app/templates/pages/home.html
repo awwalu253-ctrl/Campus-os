@@ -1,0 +1,43 @@
+{% extends "layouts/app_shell.html" %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<section class="greeting">
+  <h1>Good day, {{ current_user.display_name.split()[0] }}</h1>
+  <p class="muted">
+    {% if current_user.profile and current_user.profile.university_id %}
+      Your campus
+    {% else %}
+      Set up your campus
+    {% endif %}
+  </p>
+</section>
+
+<section class="card">
+  <h2 class="card__title">Campus Pulse</h2>
+  {% if not live_reports %}
+    <p class="muted">No active reports right now.</p>
+  {% else %}
+    <ul class="pulse-preview">
+      {% for r in live_reports %}
+        <li>
+          <a href="{{ url_for('pulse.report_detail', report_id=r.id) }}">
+            <strong>{{ r.category.replace('_',' ') }}</strong>
+            <span class="muted"> · conf: {{ r.confidence }}</span>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+  <p style="margin-top: var(--sp-3);">
+    <a class="btn btn--ghost" href="{{ url_for('pulse.index') }}">Open Pulse</a>
+    <a class="btn btn--primary" href="{{ url_for('pulse.report_new') }}">Report</a>
+  </p>
+</section>
+
+<section class="quick-grid">
+  <div class="quick-card is-disabled">Map</div>
+  <div class="quick-card is-disabled">Report</div>
+  <div class="quick-card is-disabled">Study</div>
+  <div class="quick-card is-disabled">Services</div>
+</section>
+{% endblock %}

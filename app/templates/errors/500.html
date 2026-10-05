@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Something went wrong{% endblock %}
+{% block body %}
+<main class="app-main">
+  <div class="card">
+    <h1>Something went wrong</h1>
+    <p class="muted">{{ message or "We hit an unexpected error. The team has been notified." }}</p>
+    <a class="btn btn--primary" href="{{ url_for('web.landing') }}">Back to home</a>
+  </div>
+</main>
+{% endblock %}

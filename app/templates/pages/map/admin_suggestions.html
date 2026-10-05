@@ -1,0 +1,28 @@
+{% extends "layouts/admin.html" %}
+{% block title %}Location suggestions{% endblock %}
+{% block content %}
+<h1>Pending location suggestions</h1>
+
+{% if not suggestions %}
+  <div class="card"><p class="muted">Nothing pending.</p></div>
+{% else %}
+  {% for s in suggestions %}
+    <div class="card" style="margin-bottom: var(--sp-3);">
+      <h3>{{ s.name }}</h3>
+      <p class="muted">{{ s.category }} · {{ s.lat }}, {{ s.lng }}</p>
+      {% if s.description %}<p>{{ s.description }}</p>{% endif %}
+      <div style="display:flex; gap: var(--sp-2); margin-top: var(--sp-2);">
+        <form method="post" action="{{ url_for('maps.admin_approve', sug_id=s.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn--primary">Approve</button>
+        </form>
+        <form method="post" action="{{ url_for('maps.admin_reject', sug_id=s.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="note" value="">
+          <button class="btn btn--ghost">Reject</button>
+        </form>
+      </div>
+    </div>
+  {% endfor %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "layouts/auth.html" %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<h1>Welcome back</h1>
+<p class="muted">Sign in to continue to Campus OS.</p>
+
+<form method="post" novalidate class="form">
+  {{ form.hidden_tag() }}
+
+  <label class="form__field">
+    <span>{{ form.email.label.text }}</span>
+    {{ form.email(autocomplete="email", inputmode="email", placeholder="you@example.com") }}
+    {% for e in form.email.errors %}<small class="form__error">{{ e }}</small>{% endfor %}
+  </label>
+
+  <label class="form__field">
+    <span>{{ form.password.label.text }}</span>
+    {{ form.password(autocomplete="current-password") }}
+    {% for e in form.password.errors %}<small class="form__error">{{ e }}</small>{% endfor %}
+  </label>
+
+  <label class="form__check">
+    {{ form.remember() }}
+    <span>{{ form.remember.label.text }}</span>
+  </label>
+
+  {{ form.submit(class="btn btn--primary btn--block") }}
+</form>
+
+<p class="muted" style="margin-top: var(--sp-4); text-align:center;">
+  <a href="{{ url_for('auth.forgot') }}">Forgot password?</a>
+  &nbsp;|&nbsp;
+  New here? <a href="{{ url_for('auth.register') }}">Create an account</a>
+</p>
+{% endblock %}

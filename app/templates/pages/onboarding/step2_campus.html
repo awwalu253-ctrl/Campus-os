@@ -1,0 +1,21 @@
+{% extends "layouts/auth.html" %}
+{% block title %}Choose your campus{% endblock %}
+{% block content %}
+<h1>Which campus?</h1>
+
+<form method="post" action="{{ url_for('universities.set_campus') }}" class="form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <label class="form__field">
+    <span>Campus</span>
+    <select name="campus_id" required>
+      <option value="" disabled selected>Select your campus</option>
+      {% for c in campuses %}
+        <option value="{{ c.id }}">{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <button type="submit" class="btn btn--primary btn--block">Continue</button>
+</form>
+{% endblock %}

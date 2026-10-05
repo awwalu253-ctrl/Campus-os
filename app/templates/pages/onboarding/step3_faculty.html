@@ -1,0 +1,21 @@
+{% extends "layouts/auth.html" %}
+{% block title %}Choose your faculty{% endblock %}
+{% block content %}
+<h1>Your faculty</h1>
+
+<form method="post" action="{{ url_for('universities.set_faculty') }}" class="form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <label class="form__field">
+    <span>Faculty</span>
+    <select name="faculty_id" required>
+      <option value="" disabled selected>Select your faculty</option>
+      {% for f in faculties %}
+        <option value="{{ f.id }}">{{ f.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <button type="submit" class="btn btn--primary btn--block">Continue</button>
+</form>
+{% endblock %}

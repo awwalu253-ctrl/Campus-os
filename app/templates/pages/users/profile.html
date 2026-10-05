@@ -1,0 +1,18 @@
+{% extends "layouts/app_shell.html" %}
+{% block title %}Profile{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>{{ current_user.display_name }}</h1>
+  <p class="muted">{{ current_user.email }}</p>
+  {% if current_user.phone %}<p class="muted">{{ current_user.phone }}</p>{% endif %}
+
+  <p style="margin-top: var(--sp-4);">
+    <a class="btn btn--ghost" href="{{ url_for('users.edit_profile') }}">Edit profile</a>
+  </p>
+
+  <form method="post" action="{{ url_for('auth.logout') }}" style="margin-top: var(--sp-3);">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn--ghost">Sign out</button>
+  </form>
+</section>
+{% endblock %}

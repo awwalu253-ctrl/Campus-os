@@ -1,0 +1,36 @@
+{% extends "layouts/app_shell.html" %}
+{% block title %}Map{% endblock %}
+{% block head %}
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.css" rel="stylesheet">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/map.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="map-toolbar">
+  <input id="map-search" type="search" placeholder="Search locations..." autocomplete="off">
+  <select id="map-category">
+    <option value="">All categories</option>
+    {% for c in categories %}
+      <option value="{{ c.key }}">{{ c.label }}</option>
+    {% endfor %}
+  </select>
+    <a class="btn btn--ghost" href="{{ url_for('maps.suggest') }}">+ Suggest</a>
+</div>
+
+<div id="map" class="map-canvas" data-mapbox-token="{{ MAPBOX_TOKEN }}"></div>
+
+<div class="map-legend">
+  <label><input type="checkbox" id="toggle-pulse" checked> Show live Pulse</label>
+</div>
+
+<script>
+  window.CAMPUS_OS = {
+    mapboxToken: {{ MAPBOX_TOKEN|tojson }},
+    apiLocations: "{{ url_for('maps.api_locations') }}",
+    apiPulse: "{{ url_for('maps.api_pulse') }}",
+    suggestUrl: "{{ url_for('maps.suggest') }}"
+  };
+</script>
+<script src="{{ url_for('static', filename='js/map.js') }}" defer></script>
+{% endblock %}

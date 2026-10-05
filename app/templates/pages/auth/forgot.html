@@ -1,0 +1,22 @@
+{% extends "layouts/auth.html" %}
+{% block title %}Reset password{% endblock %}
+{% block content %}
+<h1>Reset your password</h1>
+<p class="muted">Enter your email and we'll send you a reset link.</p>
+
+<form method="post" novalidate class="form">
+  {{ form.hidden_tag() }}
+
+  <label class="form__field">
+    <span>{{ form.email.label.text }}</span>
+    {{ form.email(autocomplete="email", inputmode="email", placeholder="you@example.com") }}
+    {% for e in form.email.errors %}<small class="form__error">{{ e }}</small>{% endfor %}
+  </label>
+
+  {{ form.submit(class="btn btn--primary btn--block") }}
+</form>
+
+<p class="muted" style="margin-top: var(--sp-4); text-align:center;">
+  <a href="{{ url_for('auth.login') }}">Back to sign in</a>
+</p>
+{% endblock %}

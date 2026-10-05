@@ -1,0 +1,35 @@
+{% extends "layouts/app_shell.html" %}
+{% block title %}{{ location.name }}{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>{{ location.name }}</h1>
+  <p class="muted">{{ location.category.replace('_',' ') }}</p>
+  {% if location.description %}<p>{{ location.description }}</p>{% endif %}
+  {% if location.opening_hours %}<p class="muted">Hours: {{ location.opening_hours }}</p>{% endif %}
+  {% if location.phone %}<p class="muted">Phone: {{ location.phone }}</p>{% endif %}
+
+  <p style="margin-top: var(--sp-4);">
+    <a class="btn btn--ghost" href="{{ url_for('maps.index') }}">Back to map</a>
+    <a class="btn btn--primary" href="{{ url_for('pulse.report_new') }}?location_id={{ location.id }}">
+      Report something here
+    </a>
+  </p>
+</section>
+
+<section style="margin-top: var(--sp-4);">
+  <h2>Active reports here</h2>
+  {% if not reports %}
+    <div class="card"><p class="muted">Nothing active right now.</p></div>
+  {% else %}
+    {% for r in reports %}
+      <div class="card" style="margin-bottom: var(--sp-2);">
+        <a href="{{ url_for('pulse.report_detail', report_id=r.id) }}">
+          <strong>{{ r.category.replace('_',' ') }}</strong>
+          <span class="muted"> · conf: {{ r.confidence }}</span>
+        </a>
+        {% if r.description %}<p class="muted">{{ r.description }}</p>{% endif %}
+      </div>
+    {% endfor %}
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "layouts/app_shell.html" %}
+{% block title %}New report{% endblock %}
+{% block content %}
+<h1>Post a Campus Pulse report</h1>
+<p class="muted">Help other students know what's happening right now.</p>
+
+<form method="post" class="form" style="margin-top: var(--sp-4);">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="location_id" value="{{ preset_location_id }}">
+
+  <label class="form__field">
+    <span>Category</span>
+    <select name="category" required>
+      <option value="" disabled selected>Pick a category</option>
+      {% for group, items in categories_by_group.items() %}
+        <optgroup label="{{ group }}">
+          {% for c in items %}
+            <option value="{{ c.key }}">{{ c.label }}</option>
+          {% endfor %}
+        </optgroup>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label class="form__field">
+    <span>Description (optional)</span>
+    <input name="description" maxlength="500" placeholder="Add a short detail">
+  </label>
+
+  <button type="submit" class="btn btn--primary btn--block">Post report</button>
+</form>
+{% endblock %}

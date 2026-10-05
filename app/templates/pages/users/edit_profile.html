@@ -1,0 +1,26 @@
+{% extends "layouts/app_shell.html" %}
+{% block title %}Edit profile{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Edit profile</h1>
+
+  <form method="post" novalidate class="form">
+    {{ form.hidden_tag() }}
+
+    <label class="form__field">
+      <span>{{ form.display_name.label.text }}</span>
+      {{ form.display_name() }}
+      {% for e in form.display_name.errors %}<small class="form__error">{{ e }}</small>{% endfor %}
+    </label>
+
+    <label class="form__field">
+      <span>{{ form.phone.label.text }}</span>
+      {{ form.phone() }}
+      {% for e in form.phone.errors %}<small class="form__error">{{ e }}</small>{% endfor %}
+    </label>
+
+    {{ form.submit(class="btn btn--primary") }}
+    <a class="btn btn--ghost" href="{{ url_for('users.profile') }}">Cancel</a>
+  </form>
+</section>
+{% endblock %}

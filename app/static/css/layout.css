@@ -1,0 +1,108 @@
+.app-shell { min-height: 100dvh; display: flex; flex-direction: column; }
+
+/* ── Sidebar (desktop only) ─────────────────────── */
+.sidebar { display: none; }
+
+.sidebar__brand {
+  display: block;
+  padding: var(--sp-4);
+  font-weight: 700;
+  color: var(--color-text);
+  border-bottom: 1px solid var(--color-border);
+}
+.sidebar__nav {
+  display: flex; flex-direction: column;
+  padding: var(--sp-3);
+  gap: var(--sp-1);
+}
+.sidebar__item {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  color: var(--color-text-2);
+  font-weight: 500;
+}
+.sidebar__item:hover { background: var(--color-bg); text-decoration: none; }
+.sidebar__item.is-active {
+  background: #EFF8FB;
+  color: var(--color-primary);
+}
+.sidebar__icon { width: 20px; height: 20px; flex: 0 0 auto; }
+.sidebar__item.is-disabled { opacity: .45; pointer-events: none; }
+
+/* ── Topbar ─────────────────────────────────────── */
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+.topbar__brand { display: inline-flex; align-items: center; gap: var(--sp-2);
+                 font-weight: 700; color: var(--color-text); }
+
+/* ── Main ───────────────────────────────────────── */
+.app-main {
+  flex: 1;
+  padding: var(--sp-4);
+  padding-bottom: calc(var(--bottom-nav-h) + var(--sp-5) + env(safe-area-inset-bottom));
+  max-width: var(--shell-max);
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* ── Bottom nav (mobile) ────────────────────────── */
+.bottom-nav {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  height: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  z-index: 30;
+}
+.bottom-nav__item {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; font-size: var(--fs-xs); color: var(--color-text-2);
+  text-decoration: none;
+}
+.bottom-nav__item.is-active { color: var(--color-accent); }
+.bottom-nav__item.is-disabled { opacity: .45; pointer-events: none; }
+.bottom-nav__icon { width: 22px; height: 22px; display: block; }
+
+/* ── Desktop layout ─────────────────────────────── */
+@media (min-width: 1024px) {
+  .app-shell {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "sidebar topbar"
+      "sidebar main";
+  }
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    grid-area: sidebar;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+    height: 100dvh;
+    position: sticky;
+    top: 0;
+  }
+  .topbar { grid-area: topbar; }
+  .app-main {
+    grid-area: main;
+    padding: var(--sp-6);
+    padding-bottom: var(--sp-6);
+    margin: 0;
+    max-width: none;
+  }
+  .bottom-nav { display: none; }
+  .install-card {
+    left: auto; right: var(--sp-5);
+    bottom: var(--sp-5);
+    max-width: 380px;
+  }
+}

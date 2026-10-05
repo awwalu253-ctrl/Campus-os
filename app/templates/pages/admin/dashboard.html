@@ -1,0 +1,16 @@
+{% extends "layouts/admin.html" %}
+{% block title %}Admin{% endblock %}
+{% block content %}
+<h1>Admin dashboard</h1>
+
+<section class="quick-grid">
+  <div class="card">
+    <div class="muted">Users</div>
+    <div style="font-size: var(--fs-2xl); font-weight: 700;">{{ user_count }}</div>
+  </div>
+  <div class="card">
+    <div class="muted">Universities</div>
+    <div style="font-size: var(--fs-2xl); font-weight: 700;">{{ uni_count }}</div>
+  </div>
+</section>
+{% endblock %}

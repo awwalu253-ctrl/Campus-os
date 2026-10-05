@@ -1,0 +1,21 @@
+{% extends "layouts/auth.html" %}
+{% block title %}Choose your level{% endblock %}
+{% block content %}
+<h1>What level are you in?</h1>
+
+<form method="post" action="{{ url_for('universities.set_level') }}" class="form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <label class="form__field">
+    <span>Level</span>
+    <select name="level_id" required>
+      <option value="" disabled selected>Select your level</option>
+      {% for l in levels %}
+        <option value="{{ l.id }}">{{ l.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <button type="submit" class="btn btn--primary btn--block">Finish</button>
+</form>
+{% endblock %}

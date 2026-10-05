@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: campus-os
+    runtime: python
+    plan: starter
+    buildCommand: "pip install -r requirements.txt && flask db upgrade"
+    startCommand: "gunicorn wsgi:app --workers 2 --threads 4 --timeout 60 --bind 0.0.0.0:$PORT"
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: campus-os-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: campus-os-redis
+          property: connectionString
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+
+  - type: redis
+    name: campus-os-redis
+    plan: starter
+    ipAllowList: []
+
+databases:
+  - name: campus-os-db
+    plan: basic-256mb
+    postgresMajorVersion: "16"

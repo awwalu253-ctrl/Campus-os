@@ -1,0 +1,42 @@
+{% extends "layouts/app_shell.html" %}
+{% block title %}Campus Pulse{% endblock %}
+{% block content %}
+<section class="greeting">
+  <h1>Campus Pulse</h1>
+  <p class="muted">What's happening around campus right now.</p>
+</section>
+
+<p style="margin: var(--sp-3) 0;">
+  <a class="btn btn--primary" href="{{ url_for('pulse.report_new') }}">Post a report</a>
+</p>
+
+{% if not reports %}
+  <div class="card">
+    <p class="muted">No active reports right now. Be the first to post one.</p>
+  </div>
+{% else %}
+  <ul class="pulse-list">
+    {% for r in reports %}
+      {% set meta = categories_by_group %}
+      <li class="card pulse-item">
+        <a href="{{ url_for('pulse.report_detail', report_id=r.id) }}" class="pulse-item__link">
+          <div class="pulse-item__top">
+            <span class="pulse-status pulse-status--{{ 'green' if r.confidence == 'high' else 'amber' if r.confidence == 'medium' else 'blue' }}">
+              {{ r.category.replace('_',' ') }}
+            </span>
+            <span class="muted pulse-item__time">
+              {{ r.reported_at.strftime('%H:%M') }} · conf: {{ r.confidence }}
+            </span>
+          </div>
+          {% if r.description %}
+            <p class="pulse-item__desc">{{ r.description }}</p>
+          {% endif %}
+          <div class="pulse-item__meta muted">
+            Confirms: {{ r.confirmation_count }} · Disagrees: {{ r.disagreement_count }}
+          </div>
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}
+{% endblock %}

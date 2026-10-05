@@ -1,0 +1,42 @@
+{% extends "layouts/app_shell.html" %}
+{% block title %}{{ meta.label if meta else report.category }}{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>{{ meta.label if meta else report.category.replace('_',' ') }}</h1>
+  <p class="muted">
+    Reported {{ report.reported_at.strftime('%Y-%m-%d %H:%M') }} ·
+    status: {{ report.status }} ·
+    confidence: {{ report.confidence }}
+  </p>
+  {% if report.description %}
+    <p>{{ report.description }}</p>
+  {% endif %}
+  <p class="muted">
+    Confirms: {{ report.confirmation_count }} ·
+    Disagrees: {{ report.disagreement_count }} ·
+    Flags: {{ report.flag_count }}
+  </p>
+</section>
+
+<section class="pulse-actions" style="margin-top: var(--sp-4); display:flex; gap: var(--sp-2); flex-wrap:wrap;">
+  <form method="post" action="{{ url_for('pulse.confirm', report_id=report.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn--primary">Confirm</button>
+  </form>
+
+  <form method="post" action="{{ url_for('pulse.disagree', report_id=report.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn--ghost">Disagree</button>
+  </form>
+
+  <form method="post" action="{{ url_for('pulse.flag', report_id=report.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="reason" value="user_flag">
+    <button class="btn btn--ghost">Flag</button>
+  </form>
+</section>
+
+<p style="margin-top: var(--sp-4);">
+  <a href="{{ url_for('pulse.index') }}">Back to Pulse</a>
+</p>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "layouts/app_shell.html" %}
+{% block title %}Suggest a location{% endblock %}
+{% block content %}
+<h1>Suggest a location</h1>
+<p class="muted">Help us fill in the gaps. Your suggestion goes to a moderator.</p>
+
+<form method="post" class="form" style="margin-top: var(--sp-4);">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <label class="form__field">
+    <span>Name</span>
+    <input name="name" required maxlength="160" placeholder="e.g. Faculty of Science">
+  </label>
+
+  <label class="form__field">
+    <span>Category</span>
+    <select name="category" required>
+      <option value="" disabled selected>Pick a category</option>
+      {% for c in categories %}
+        <option value="{{ c.key }}">{{ c.label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label class="form__field">
+    <span>Latitude</span>
+    <input name="lat" required inputmode="decimal" placeholder="8.4826">
+  </label>
+
+  <label class="form__field">
+    <span>Longitude</span>
+    <input name="lng" required inputmode="decimal" placeholder="4.6736">
+  </label>
+
+  <label class="form__field">
+    <span>Description (optional)</span>
+    <input name="description" maxlength="500">
+  </label>
+
+  <button type="submit" class="btn btn--primary btn--block">Submit suggestion</button>
+</form>
+{% endblock %}

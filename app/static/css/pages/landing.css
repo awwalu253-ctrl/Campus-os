@@ -1,0 +1,9 @@
+.page-landing .landing {
+  min-height: 100dvh;
+  display: grid; place-items: center;
+  padding: var(--sp-6);
+  text-align: center;
+}
+.landing__hero { max-width: 560px; }
+.landing__hero img { margin: 0 auto var(--sp-4); }
+.landing__cta { display: flex; gap: var(--sp-3); justify-content: center; margin-top: var(--sp-5); flex-wrap: wrap; }

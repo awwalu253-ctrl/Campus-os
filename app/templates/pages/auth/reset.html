@@ -1,0 +1,24 @@
+{% extends "layouts/auth.html" %}
+{% block title %}Set new password{% endblock %}
+{% block content %}
+<h1>Set a new password</h1>
+<p class="muted">Choose something strong that you don't use anywhere else.</p>
+
+<form method="post" novalidate class="form">
+  {{ form.hidden_tag() }}
+
+  <label class="form__field">
+    <span>{{ form.password.label.text }}</span>
+    {{ form.password(autocomplete="new-password") }}
+    {% for e in form.password.errors %}<small class="form__error">{{ e }}</small>{% endfor %}
+  </label>
+
+  <label class="form__field">
+    <span>{{ form.confirm.label.text }}</span>
+    {{ form.confirm(autocomplete="new-password") }}
+    {% for e in form.confirm.errors %}<small class="form__error">{{ e }}</small>{% endfor %}
+  </label>
+
+  {{ form.submit(class="btn btn--primary btn--block") }}
+</form>
+{% endblock %}

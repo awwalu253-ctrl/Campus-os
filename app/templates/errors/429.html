@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Too many requests{% endblock %}
+{% block body %}
+<main class="app-main">
+  <div class="card">
+    <h1>Slow down a moment</h1>
+    <p class="muted">{{ message or "You've made too many requests. Please try again in a bit." }}</p>
+    <a class="btn btn--primary" href="{{ url_for('web.landing') }}">Back to home</a>
+  </div>
+</main>
+{% endblock %}
