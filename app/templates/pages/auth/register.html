@@ -22,6 +22,7 @@
   <label class="form__field">
     <span>{{ form.phone.label.text }}</span>
     {{ form.phone(autocomplete="tel", inputmode="tel", placeholder="+234 800 000 0000") }}
+    <small class="form__hint">Optional. Only if you want updates via SMS.</small>
     {% for e in form.phone.errors %}<small class="form__error">{{ e }}</small>{% endfor %}
   </label>
 

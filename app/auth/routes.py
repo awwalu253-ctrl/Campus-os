@@ -1,20 +1,20 @@
 from urllib.parse import urlparse
 
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
+from flask import (
+    Blueprint, render_template, redirect, url_for, flash, request, current_app,
+)
 from flask_login import login_user, logout_user, login_required, current_user
 
 from app.extensions import db, limiter
 from app.auth.forms import RegisterForm, LoginForm, ForgotForm, ResetForm
 from app.auth import services
 from app.core.audit import log
-from app.models import User
 
 bp = Blueprint("auth", __name__, url_prefix="/auth")
 
-ADMIN_ROLES = ("platform_admin", "campus_admin", "moderator")
-
 
 def _safe_next(target: str | None) -> str | None:
+    """Only allow relative in-app redirects."""
     if not target:
         return None
     parsed = urlparse(target)
@@ -23,36 +23,39 @@ def _safe_next(target: str | None) -> str | None:
     return target
 
 
-def _post_login_redirect(user) -> str:
-    """Admins never see student onboarding."""
-    if user.role in ADMIN_ROLES:
-        return url_for("admin.dashboard")
-    if not user.has_onboarded:
-        return url_for("universities.onboarding")
-    return url_for("web.home")
-
-
 @bp.route("/register", methods=["GET", "POST"])
 @limiter.limit("20 per hour", methods=["POST"])
 def register():
     if current_user.is_authenticated:
         return redirect(url_for("web.home"))
+
     form = RegisterForm()
     if form.validate_on_submit():
-        existing = User.query.filter_by(email=form.email.data.strip().lower()).first()
-        if existing:
+        email = form.email.data.strip().lower()
+        phone = (form.phone.data or "").strip() or None
+
+        if services.User.query.filter_by(email=email).first():
             flash("An account with that email already exists.", "error")
+        elif phone and services.User.query.filter_by(phone=phone).first():
+            flash("An account with that phone number already exists.", "error")
         else:
-            user = services.create_user(
-                email=form.email.data,
-                password=form.password.data,
-                display_name=form.display_name.data,
-                phone=form.phone.data,
-            )
-            log(user.id, "user.register", "user", user.id)
-            db.session.commit()
-            login_user(user)
-            return redirect(url_for("universities.onboarding"))
+            try:
+                user = services.create_user(
+                    email=email,
+                    password=form.password.data,
+                    display_name=form.display_name.data,
+                    phone=phone,
+                )
+                log(user.id, "user.register", "user", user.id)
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception("Registration failed")
+                flash("Something went wrong creating your account. Please try again.", "error")
+            else:
+                login_user(user)
+                return redirect(url_for("universities.onboarding"))
+
     return render_template("pages/auth/register.html", form=form)
 
 
@@ -61,6 +64,7 @@ def register():
 def login():
     if current_user.is_authenticated:
         return redirect(url_for("web.home"))
+
     form = LoginForm()
     if form.validate_on_submit():
         user = services.authenticate(form.email.data, form.password.data)
@@ -69,10 +73,20 @@ def login():
         else:
             login_user(user, remember=form.remember.data)
             db.session.commit()
+
             nxt = _safe_next(request.args.get("next"))
             if nxt:
                 return redirect(nxt)
-            return redirect(_post_login_redirect(user))
+
+            # Admins and moderators skip the student onboarding flow.
+            if user.role in ("platform_admin", "campus_admin", "moderator"):
+                return redirect(url_for("admin.dashboard"))
+
+            if not user.has_onboarded:
+                return redirect(url_for("universities.onboarding"))
+
+            return redirect(url_for("web.home"))
+
     return render_template("pages/auth/login.html", form=form)
 
 
@@ -89,12 +103,18 @@ def logout():
 def forgot():
     form = ForgotForm()
     if form.validate_on_submit():
-        user = User.query.filter_by(email=form.email.data.strip().lower()).first()
+        user = services.User.query.filter_by(
+            email=form.email.data.strip().lower()
+        ).first()
         if user:
             token = services.issue_reset_token(user)
             reset_url = url_for("auth.reset", token=token, _external=True)
-            # Phase 1: log the URL. Mail wiring lands when MAIL_* are configured.
-            current_app.logger.info("Password reset URL for %s: %s", user.email, reset_url)
+            # Phase 1: log the URL. Wire email delivery when MAIL_* are set.
+            current_app.logger.info(
+                "Password reset URL for %s: %s", user.email, reset_url
+            )
+        # Always show the same message regardless of whether the email exists,
+        # so attackers can't enumerate accounts.
         flash("If that email exists, a reset link has been sent.", "info")
         return redirect(url_for("auth.login"))
     return render_template("pages/auth/forgot.html", form=form)
@@ -106,6 +126,7 @@ def reset(token):
     if not user:
         flash("That reset link is invalid or has expired.", "error")
         return redirect(url_for("auth.forgot"))
+
     form = ResetForm()
     if form.validate_on_submit():
         services.set_password(user, form.password.data)
@@ -113,4 +134,5 @@ def reset(token):
         db.session.commit()
         flash("Password updated. Please sign in.", "info")
         return redirect(url_for("auth.login"))
+
     return render_template("pages/auth/reset.html", form=form, token=token)
