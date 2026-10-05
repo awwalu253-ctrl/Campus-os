@@ -2,7 +2,7 @@ services:
   - type: web
     name: campus-os
     runtime: python
-    plan: free                    # <-- free, no card
+    plan: free
     region: oregon
     buildCommand: "pip install -r requirements.txt && python -m scripts.enable_postgis && flask db upgrade"
     startCommand: "gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 60"
@@ -31,6 +31,6 @@ services:
 
 databases:
   - name: campus-os-db
-    plan: free                    # <-- free, no card
+    plan: free
     region: oregon
     postgresMajorVersion: "16"
