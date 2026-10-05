@@ -19,7 +19,7 @@ services:
           name: campus-os-db
           property: connectionString
       - key: MAPBOX_TOKEN
-        sync: false
+        sync: false  # You will enter this in the Render dashboard
       - key: POSTGIS_ENABLED
         value: "true"
       - key: RATELIMIT_ENABLED
