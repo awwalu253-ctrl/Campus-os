@@ -1,133 +1,66 @@
-# ─────────────────────────────────────────────────────────────
-# Campus OS — .gitignore
-# ─────────────────────────────────────────────────────────────
-
-# ── Environment & secrets ────────────────────────────────────
-.env
-.env.*
-!.env.example
-
-# Catch any stray files with secret-sounding names, whatever the extension.
-# These rules apply recursively to every subfolder.
-*secret*
-*token*
-*credential*
-*password*
-*api_key*
-*apikey*
-
-# Exception: allow the example files even if their names contain
-# one of the keywords above.
-!.env.example
-!*.env.example
-
-# ── Python ───────────────────────────────────────────────────
+# ── Python ─────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
 build/
-develop-eggs/
 dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+develop-eggs/
 downloads/
 eggs/
-.eggs/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
-# Virtual environments
+# ── Virtual environments ───────────────────────────────
 .venv/
 venv/
 ENV/
 env/
-ENV.bak/
+.python-version
+# (Note: if you WANT to commit .python-version for Render,
+#  remove it from this list. Currently it's listed as ignored,
+#  which will break Render's Python pinning. See note below.)
 
-# ── Testing & coverage ───────────────────────────────────────
+# ── Flask / runtime ────────────────────────────────────
+instance/
+.webassets-cache
+.cache/
+celerybeat-schedule
+celerybeat-schedule.*
+celerybeat.pid
+
+# ── Environment & secrets ──────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+
+# ── Testing & coverage ─────────────────────────────────
 .pytest_cache/
 .coverage
 .coverage.*
 htmlcov/
 .tox/
 .nox/
-coverage.xml
-*.cover
-.hypothesis/
 
-# ── Flask / app runtime ──────────────────────────────────────
-instance/
-.webassets-cache
+# ── Logs & OS junk ─────────────────────────────────────
 *.log
-logs/
-flask_session/
-.cache/
+.DS_Store
+Thumbs.db
+desktop.ini
 
-# ── Celery ───────────────────────────────────────────────────
-celerybeat-schedule
-celerybeat-schedule.*
-celerybeat.pid
-*.pid
-celeryd.log
-
-# ── Migrations (compiled artifacts only; keep the .py files) ──
-migrations/versions/*.pyc
-migrations/__pycache__/
-
-# ── Node (frontend tooling, if ever added) ───────────────────
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-package-lock.json.bak
-
-# ── Editors & IDEs ───────────────────────────────────────────
+# ── Editors ────────────────────────────────────────────
 .vscode/
-!.vscode/extensions.json
-!.vscode/settings.example.json
 .idea/
 *.swp
 *.swo
-*~
-*.sublime-workspace
-*.sublime-project
 
-# ── OS junk ──────────────────────────────────────────────────
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-Desktop.ini
-$RECYCLE.BIN/
-
-# ── Local database dumps & backups ───────────────────────────
-*.sqlite3
-*.db
-*.sqlite
-*.dump
-*.sql.gz
-
-# ── Build outputs ────────────────────────────────────────────
-*.min.css.map
-*.min.js.map
-static/dist/
-
-# ── Temporary / scratch ──────────────────────────────────────
-tmp/
-temp/
-*.tmp
-scratch/
-notes/
-*.bak
-*.orig
-*.rej
+# ── Local scratch ──────────────────────────────────────
+/tmp/
+/scratch/
