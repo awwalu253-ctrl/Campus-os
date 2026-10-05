@@ -5,6 +5,16 @@ from datetime import timedelta
 def _bool(key: str, default: bool = False) -> bool:
     return os.getenv(key, str(default)).lower() in {"1", "true", "yes", "on"}
 
+def _normalize_db_url(url: str | None) -> str | None:
+    """Render/Heroku/Railway provide postgresql:// URLs which default to
+    psycopg2 in SQLAlchemy. We use psycopg (v3), so rewrite the scheme."""
+    if not url:
+        return url
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    return url
 
 class BaseConfig:
     # ── Flask core ──────────────────────────────────────
@@ -22,7 +32,7 @@ class BaseConfig:
     REMEMBER_COOKIE_SAMESITE = "Lax"
 
     # ── SQLAlchemy ──────────────────────────────────────
-    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")
+    SQLALCHEMY_DATABASE_URI = _normalize_db_url(os.getenv("DATABASE_URL"))
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,
@@ -69,9 +79,9 @@ class TestingConfig(BaseConfig):
     TESTING = True
     WTF_CSRF_ENABLED = False
     RATELIMIT_ENABLED = False
-    SQLALCHEMY_DATABASE_URI = os.getenv(
-        "TEST_DATABASE_URL",
-        "postgresql+psycopg://campusos:campusos@localhost:5432/campusos_test",
+    SQLALCHEMY_DATABASE_URI = _normalize_db_url(
+    os.getenv("TEST_DATABASE_URL",
+                "postgresql+psycopg://campusos:campusos@localhost:5432/campusos_test")
     )
 
 
