@@ -3,14 +3,39 @@
 {% block content %}
 <h1>Admin dashboard</h1>
 
-<section class="quick-grid">
+<section class="quick-grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));">
   <div class="card">
     <div class="muted">Users</div>
-    <div style="font-size: var(--fs-2xl); font-weight: 700;">{{ user_count }}</div>
+    <div class="stat">{{ user_count }}</div>
   </div>
   <div class="card">
     <div class="muted">Universities</div>
-    <div style="font-size: var(--fs-2xl); font-weight: 700;">{{ uni_count }}</div>
+    <div class="stat">{{ uni_count }}</div>
+  </div>
+  <div class="card">
+    <div class="muted">Locations</div>
+    <div class="stat">{{ location_count }}</div>
+  </div>
+  <div class="card">
+    <div class="muted">Active reports</div>
+    <div class="stat">{{ active_report_count }}</div>
+  </div>
+  <div class="card">
+    <div class="muted">Pending suggestions</div>
+    <div class="stat">{{ pending_suggestion_count }}</div>
+  </div>
+  <div class="card">
+    <div class="muted">Flagged reports</div>
+    <div class="stat">{{ flagged_report_count }}</div>
+  </div>
+</section>
+
+<section style="margin-top: var(--sp-5);">
+  <h2>Quick actions</h2>
+  <div class="quick-actions">
+    <a class="btn btn--ghost" href="{{ url_for('maps.admin_suggestions') }}">Review suggestions</a>
+    <a class="btn btn--ghost" href="{{ url_for('pulse.index') }}">View Pulse</a>
+    <a class="btn btn--ghost" href="{{ url_for('maps.index') }}">View map</a>
   </div>
 </section>
 {% endblock %}

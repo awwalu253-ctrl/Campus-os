@@ -1,5 +1,5 @@
 from urllib.parse import urlparse
-from app.models import User
+
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 
@@ -7,8 +7,11 @@ from app.extensions import db, limiter
 from app.auth.forms import RegisterForm, LoginForm, ForgotForm, ResetForm
 from app.auth import services
 from app.core.audit import log
+from app.models import User
 
 bp = Blueprint("auth", __name__, url_prefix="/auth")
+
+ADMIN_ROLES = ("platform_admin", "campus_admin", "moderator")
 
 
 def _safe_next(target: str | None) -> str | None:
@@ -20,6 +23,15 @@ def _safe_next(target: str | None) -> str | None:
     return target
 
 
+def _post_login_redirect(user) -> str:
+    """Admins never see student onboarding."""
+    if user.role in ADMIN_ROLES:
+        return url_for("admin.dashboard")
+    if not user.has_onboarded:
+        return url_for("universities.onboarding")
+    return url_for("web.home")
+
+
 @bp.route("/register", methods=["GET", "POST"])
 @limiter.limit("20 per hour", methods=["POST"])
 def register():
@@ -27,7 +39,7 @@ def register():
         return redirect(url_for("web.home"))
     form = RegisterForm()
     if form.validate_on_submit():
-        existing = services.User.query.filter_by(email=form.email.data.strip().lower()).first()
+        existing = User.query.filter_by(email=form.email.data.strip().lower()).first()
         if existing:
             flash("An account with that email already exists.", "error")
         else:
@@ -60,9 +72,7 @@ def login():
             nxt = _safe_next(request.args.get("next"))
             if nxt:
                 return redirect(nxt)
-            if not user.has_onboarded:
-                return redirect(url_for("universities.onboarding"))
-            return redirect(url_for("web.home"))
+            return redirect(_post_login_redirect(user))
     return render_template("pages/auth/login.html", form=form)
 
 
@@ -79,7 +89,7 @@ def logout():
 def forgot():
     form = ForgotForm()
     if form.validate_on_submit():
-        user = services.User.query.filter_by(email=form.email.data.strip().lower()).first()
+        user = User.query.filter_by(email=form.email.data.strip().lower()).first()
         if user:
             token = services.issue_reset_token(user)
             reset_url = url_for("auth.reset", token=token, _external=True)

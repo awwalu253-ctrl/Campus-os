@@ -2,14 +2,18 @@
 {% block body_class %}page-landing{% endblock %}
 {% block body %}
 <main class="landing">
-  <header class="landing__hero">
+  <div class="landing__inner">
+    <div class="landing__logo" aria-hidden="true"></div>
     <h1>{{ BRAND.tagline }}</h1>
-    <p>Discover what's happening around campus, find places and services,
-       stay organized, and make student life easier.</p>
+    <p class="landing__tag">
+      Discover what's happening around campus, find places and services,
+      stay organized, and make student life easier.
+    </p>
     <div class="landing__cta">
-      <a class="btn btn--primary" href="{{ url_for('auth.register') }}">Explore Campus OS</a>
-      <a class="btn btn--ghost" href="{{ url_for('auth.login') }}">Sign in</a>
+      <a class="btn btn--primary btn--lg" href="{{ url_for('auth.register') }}">Get started</a>
+      <a class="btn btn--ghost btn--lg" href="{{ url_for('auth.login') }}">Sign in</a>
     </div>
-  </header>
+    <div class="landing__meta">Built for Nigerian universities</div>
+  </div>
 </main>
 {% endblock %}
