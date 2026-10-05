@@ -41,11 +41,11 @@ class BaseConfig:
 
     # ── Redis / Celery ──────────────────────────────────
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/1")
-    CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/2")
+    CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "memory://")
+    CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "cache+memory://")
 
-    # ── Rate limiting ───────────────────────────────────
-    RATELIMIT_STORAGE_URI = REDIS_URL
+    # Rate limiting storage. On Render free tier (no Redis), fall back to memory.
+    RATELIMIT_STORAGE_URI = os.getenv("REDIS_URL") or "memory://"
     RATELIMIT_DEFAULT = "300 per hour"
     RATELIMIT_HEADERS_ENABLED = True
 
