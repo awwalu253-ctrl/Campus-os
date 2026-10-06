@@ -606,24 +606,58 @@
 /* ═══════════════════════════════════════════════════════
    Navigation loading bar
    ═══════════════════════════════════════════════════════ */
-.loading-bar {
+/* ═══════════════════════════════════════════════════════
+   Navigation loading bar
+   ═══════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════
+   Navigation spinner overlay
+   ═══════════════════════════════════════════════════════ */
+.nav-spinner {
   position: fixed;
-  top: 0;
-  left: 0;
-  height: 2px;
-  width: 0;
-  background: var(--color-accent);
-  z-index: 200;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(23, 35, 63, 0.18);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition: width 400ms ease-out, opacity 180ms ease-out;
+  transition: opacity 180ms ease-out, visibility 180ms ease-out;
 }
-
-.loading-bar.is-active {
+.nav-spinner.is-active {
   opacity: 1;
-  /* Width transitions are set inline by JS */
+  visibility: visible;
+  pointer-events: auto;
 }
 
-.loading-bar.is-active {
-  box-shadow: 0 0 6px rgba(25, 195, 230, 0.6);
+.nav-spinner__ring {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.35);
+  border-top-color: var(--color-accent);
+  box-shadow: 0 4px 20px rgba(23, 32, 51, 0.25);
+  background: rgba(255, 255, 255, 0.0);
+  animation: nav-spinner-rotate 720ms linear infinite;
+}
+
+@keyframes nav-spinner-rotate {
+  to { transform: rotate(360deg); }
+}
+
+/* If the user prefers reduced motion, show a static ring with a
+   subtle pulse instead of a spinning one. */
+@media (prefers-reduced-motion: reduce) {
+  .nav-spinner__ring {
+    animation: nav-spinner-pulse 1.2s ease-in-out infinite;
+    border-top-color: var(--color-accent);
+  }
+  @keyframes nav-spinner-pulse {
+    0%, 100% { opacity: 0.5; }
+    50%      { opacity: 1; }
+  }
 }

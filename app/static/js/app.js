@@ -38,42 +38,52 @@
     document.body.appendChild(el);
   }
 
-  // ── Navigation loading bar ──────────────────────────
-  // Shows a thin animated bar during any internal navigation. Because
-  // each navigation is a full page load, we can't animate across the
-  // transition — but starting the bar on click and letting the new page
-  // instantly render its own (hidden) bar reads as continuous.
+  // ── Navigation spinner overlay ──────────────────────
+  // Shows a centered spinner during internal navigation. Only appears if
+  // the wait exceeds SHOW_DELAY_MS (so fast pages don't flash), and once
+  // shown it stays for at least MIN_VISIBLE_MS (so it doesn't blink).
 
-  const bar = document.getElementById('loading-bar');
+  const SHOW_DELAY_MS = 150;
+  const MIN_VISIBLE_MS = 350;
 
-  function startLoading() {
-    if (!bar) return;
-    bar.classList.add('is-active');
-    bar.style.width = '0';
-    // Two rAF frames so the browser sees the initial 0 width before
-    // animating, otherwise the transition doesn't fire.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        bar.style.width = '75%';
-      });
-    });
+  let showTimer = null;
+  let spinnerShownAt = 0;
+
+  function getSpinner() {
+    return document.getElementById('nav-spinner');
   }
 
-  function completeLoading() {
-    if (!bar) return;
-    bar.style.width = '100%';
+  function showSpinner() {
+    const el = getSpinner();
+    if (!el) return;
+    spinnerShownAt = Date.now();
+    el.classList.add('is-active');
+  }
+
+  function hideSpinner() {
+    const el = getSpinner();
+    if (!el) return;
+    const elapsed = spinnerShownAt ? Date.now() - spinnerShownAt : 0;
+    const remaining = Math.max(0, MIN_VISIBLE_MS - elapsed);
     setTimeout(() => {
-      bar.classList.remove('is-active');
-      bar.style.width = '0';
-    }, 180);
+      el.classList.remove('is-active');
+      spinnerShownAt = 0;
+    }, remaining);
+  }
+
+  function beginNavigation() {
+    // If a previous navigation was mid-flight, cancel its pending show.
+    if (showTimer) clearTimeout(showTimer);
+    showTimer = setTimeout(showSpinner, SHOW_DELAY_MS);
   }
 
   function isInternalLink(anchor) {
     if (!anchor || !anchor.href) return false;
     if (anchor.target && anchor.target !== '_self') return false;
     if (anchor.hasAttribute('download')) return false;
-    if (anchor.getAttribute('href')?.startsWith('#')) return false;
-
+    const href = anchor.getAttribute('href');
+    if (!href || href.startsWith('#')) return false;
+    if (href.startsWith('mailto:') || href.startsWith('tel:')) return false;
     try {
       const url = new URL(anchor.href, window.location.origin);
       return url.origin === window.location.origin;
@@ -82,24 +92,30 @@
     }
   }
 
-  // Intercept clicks on internal links
   document.addEventListener('click', (e) => {
-    // Ignore modified clicks (new tab, etc.)
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     if (e.defaultPrevented) return;
-
     const anchor = e.target.closest('a');
     if (!isInternalLink(anchor)) return;
-    startLoading();
-    // Let the browser continue with the default navigation.
+    beginNavigation();
   });
 
-  // Intercept form submissions
   document.addEventListener('submit', (e) => {
     if (e.defaultPrevented) return;
-    startLoading();
+    beginNavigation();
   });
 
-  // When the new page finishes loading, hide any bar that might be visible.
-  window.addEventListener('pageshow', completeLoading);
+  // When the new page finishes loading, hide any spinner that managed to
+  // appear. Because each page gets a fresh JS context, this runs on the
+  // incoming page — the spinner element is present but inactive by default,
+  // so nothing flashes.
+  window.addEventListener('pageshow', () => {
+    if (showTimer) clearTimeout(showTimer);
+    hideSpinner();
+  });
+
+  window.addEventListener('popstate', () => {
+    if (showTimer) clearTimeout(showTimer);
+    hideSpinner();
+  });
 })();
