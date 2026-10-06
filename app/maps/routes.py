@@ -10,13 +10,38 @@ from app.pulse import services as pulse_services
 
 bp = Blueprint("maps", __name__, url_prefix="/map")
 
+STAFF_ROLES = ("platform_admin", "campus_admin", "moderator")
+
 
 def _campus_id():
+    """Return the current user's campus.
+
+    Students use their profile's campus. Staff roles (admin/moderator) have
+    no StudentProfile, so they fall back to the first campus in the system —
+    enough for previewing the map without a full onboarding flow.
+    """
     if not current_user.is_authenticated:
         return None
-    if not current_user.profile:
-        return None
-    return current_user.profile.campus_id
+
+    if current_user.profile and current_user.profile.campus_id:
+        return current_user.profile.campus_id
+
+    if current_user.role in STAFF_ROLES:
+        from app.models import Campus
+        first = Campus.query.order_by(Campus.name).first()
+        if first:
+            return first.id
+
+    return None
+
+
+def _staff_without_campus():
+    """True when a staff user has no campus to fall back to (nothing seeded)."""
+    return (
+        current_user.is_authenticated
+        and current_user.role in STAFF_ROLES
+        and not (current_user.profile and current_user.profile.campus_id)
+    )
 
 
 @bp.get("/")
@@ -24,16 +49,18 @@ def _campus_id():
 def index():
     campus_id = _campus_id()
     if not campus_id:
+        if _staff_without_campus():
+            flash("No campus data seeded yet. Run the seed scripts first.", "info")
+            return redirect(url_for("admin.dashboard"))
         flash("Complete your campus setup first.", "info")
         return redirect(url_for("universities.onboarding"))
+
     return render_template(
         "pages/map/index.html",
-        mapbox_token=current_user and None or None,  # actual token passed via Jinja global below
         categories=loc_cats.all_categories(),
     )
 
 
-# JSON API used by the map JS layer
 @bp.get("/api/locations")
 @login_required
 def api_locations():
@@ -44,36 +71,51 @@ def api_locations():
     category = request.args.get("category") or None
     search = request.args.get("q") or None
 
-    rows = services.approved_locations(campus_id, category=category, search=search)
-    features = [services.as_geojson(r) for r in rows]
+    features = services.approved_locations_geo(
+        campus_id, category=category, search=search,
+    )
     return jsonify({"locations": features})
 
 
 @bp.get("/api/pulse")
 @login_required
 def api_pulse():
-    """Active Pulse reports as map markers."""
+    """Active Pulse reports as map markers, joined to locations in one go."""
     campus_id = _campus_id()
     if not campus_id:
         return jsonify({"error": "no campus"}), 400
 
     reports = pulse_services.active_reports_for_campus(campus_id, limit=200)
+
+    location_ids = [r.location_id for r in reports if r.location_id]
+    coords_by_loc: dict[str, tuple[float, float]] = {}
+    if location_ids:
+        from app.maps.models import Location
+        from sqlalchemy import select, func
+        rows = db.session.execute(
+            select(
+                Location.id,
+                func.ST_Y(Location.point),
+                func.ST_X(Location.point),
+            ).where(Location.id.in_(location_ids))
+        ).all()
+        coords_by_loc = {row[0]: (row[1], row[2]) for row in rows}
+
     out = []
     for r in reports:
-        # Location is optional — reports without a location are skipped on map
         if not r.location_id:
             continue
-        loc = services.get_location(r.location_id)
-        if not loc:
+        latlng = coords_by_loc.get(r.location_id)
+        if not latlng:
             continue
-        g = services.as_geojson(loc)
+        lat, lng = latlng
         out.append({
             "id": r.id,
             "category": r.category,
             "confidence": r.confidence,
             "description": r.description,
-            "lat": g["lat"],
-            "lng": g["lng"],
+            "lat": float(lat) if lat is not None else None,
+            "lng": float(lng) if lng is not None else None,
             "reported_at": r.reported_at.isoformat(),
             "url": url_for("pulse.report_detail", report_id=r.id),
         })
@@ -157,15 +199,14 @@ def admin_reject(sug_id):
         flash(str(e), "error")
     return redirect(url_for("maps.admin_suggestions"))
 
+
 @bp.get("/location/<location_id>")
 @login_required
 def location_detail(location_id):
-    from flask import abort
     loc = services.get_location(location_id)
     if not loc or loc.status != "approved":
         abort(404)
     geo = services.as_geojson(loc)
-    # Reports attached to this location (if any)
     from app.pulse.models import CampusReport
     reports = (CampusReport.query
                .filter_by(location_id=loc.id, status="active")

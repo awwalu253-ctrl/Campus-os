@@ -1,6 +1,5 @@
 <!doctype html>
 <html lang="en">
-
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -15,7 +14,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/onboarding.css') }}">
 
   <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
@@ -25,8 +23,18 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/landing.css') }}">
   {% block head %}{% endblock %}
 </head>
-
 <body class="{% block body_class %}{% endblock %}">
+
+  <!-- Navigation loading bar (top of viewport, hidden by default). -->
+  <div id="loading-bar" class="loading-bar" aria-hidden="true"></div>
+
+  <!-- Splash lives on every page. splash.js decides whether to show it —
+       only on the very first page load of a standalone session. -->
+  <div id="splash" class="splash" aria-hidden="true">
+    <div class="splash__word">CAMPUS OS</div>
+    <div class="splash__tag">{{ BRAND.tagline }}</div>
+  </div>
+
   {% block body %}{% endblock %}
 
   <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
@@ -34,5 +42,4 @@
   <script src="{{ url_for('static', filename='js/pwa/splash.js') }}" defer></script>
   {% block scripts %}{% endblock %}
 </body>
-
 </html>

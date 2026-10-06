@@ -1,7 +1,8 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from flask import Flask, render_template
+import logging
+from flask import Flask, jsonify
 
 from app.config import get_config
 from app.extensions import db, migrate, login_manager, csrf, limiter
@@ -14,20 +15,48 @@ def create_app(config_name: str | None = None) -> Flask:
     cfg = get_config(config_name)
     app.config.from_object(cfg)
 
+    # ── Logging ─────────────────────────────────────────
+    if app.config.get("ENV") == "production":
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s %(levelname)s %(name)s %(message)s',
+        )
+    else:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format='%(asctime)s %(levelname)s %(name)s %(message)s',
+        )
+
+    # ── Sentry (optional) ───────────────────────────────
+    dsn = app.config.get("SENTRY_DSN")
+    if dsn:
+        try:
+            import sentry_sdk
+            from sentry_sdk.integrations.flask import FlaskIntegration
+            sentry_sdk.init(
+                dsn=dsn,
+                integrations=[FlaskIntegration()],
+                traces_sample_rate=0.1,
+                environment=app.config.get("ENV", "development"),
+            )
+            app.logger.info("Sentry initialized.")
+        except ImportError:
+            app.logger.warning("SENTRY_DSN set but sentry-sdk not installed; skipping.")
+
     # ── Extensions ──────────────────────────────────────
     db.init_app(app)
     migrate.init_app(app, db)
     csrf.init_app(app)
-    if app.config.get("RATELIMIT_ENABLED", True):
-        limiter.init_app(app)
+
+    # Flask-Limiter: always init so @limiter.limit decorators are valid,
+    # even when disabled (they become no-ops internally).
+    limiter.init_app(app)
+
     login_manager.init_app(app)
     login_manager.login_view = "auth.login"
     login_manager.login_message_category = "info"
 
-    # ── Models (import side effect: registers metadata) ─
-    # Do NOT import feature models directly here. Everything routes
-    # through app.models.__init__, which is the single registration
-    # surface for SQLAlchemy metadata.
+    # ── Models ──────────────────────────────────────────
     from app import models  # noqa: F401
 
     # ── Blueprints ──────────────────────────────────────
@@ -71,8 +100,45 @@ def create_app(config_name: str | None = None) -> Flask:
     def inject_mapbox():
         return {"MAPBOX_TOKEN": app.config.get("MAPBOX_TOKEN", "")}
 
-    @app.route("/healthz")
+    # ── Health checks ───────────────────────────────────
+    @app.get("/healthz")
     def healthz():
+        """Liveness — no dependencies. Used by Render's health check."""
         return {"status": "ok"}, 200
+
+    @app.get("/readyz")
+    def readyz():
+        """Readiness — verifies DB connectivity."""
+        try:
+            db.session.execute(db.text("SELECT 1"))
+            return {"status": "ready", "db": "ok"}, 200
+        except Exception as e:
+            app.logger.exception("Readiness check failed")
+            return {"status": "not_ready", "db": "error"}, 503
+
+    @app.get("/healthz/deps")
+    def healthz_deps():
+        """Dependency detail. No secrets, no versions, no connection strings."""
+        result = {"db": "ok", "redis": "unknown"}
+
+        try:
+            db.session.execute(db.text("SELECT 1"))
+        except Exception:
+            result["db"] = "error"
+
+        redis_url = app.config.get("REDIS_URL")
+        if redis_url:
+            try:
+                import redis as _redis
+                client = _redis.from_url(redis_url, socket_timeout=2)
+                client.ping()
+                result["redis"] = "ok"
+            except Exception:
+                result["redis"] = "error"
+        else:
+            result["redis"] = "not_configured"
+
+        status_code = 200 if result["db"] == "ok" else 503
+        return jsonify(result), status_code
 
     return app

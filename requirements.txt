@@ -44,3 +44,5 @@ pytest-flask==1.3.0
 psycopg2-binary==2.9.9
 
 gunicorn==22.0.0
+
+sentry-sdk[flask]==2.19.2

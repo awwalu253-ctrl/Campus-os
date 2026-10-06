@@ -263,3 +263,27 @@
 .quick-card__icon svg { width: 18px; height: 18px; }
 .quick-card__label { font-size: var(--fs-sm); font-weight: 600; }
 .quick-card__sub   { font-size: var(--fs-xs); color: var(--color-text-2); margin-top: 2px; }
+
+/* ═══════════════════════════════════════════════════════
+   Navigation loading bar
+   ═══════════════════════════════════════════════════════ */
+.loading-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 2px;
+  width: 0;
+  background: var(--color-accent);
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: width 400ms ease-out, opacity 180ms ease-out;
+}
+.loading-bar.is-active {
+  opacity: 1;
+  /* Width transitions are set inline by JS */
+}
+
+.loading-bar.is-active {
+  box-shadow: 0 0 6px rgba(25, 195, 230, 0.6);
+}

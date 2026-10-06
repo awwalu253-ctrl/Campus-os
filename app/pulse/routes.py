@@ -41,8 +41,11 @@ def report_new():
 
         if not categories.is_valid(category):
             flash("Please pick a category.", "error")
-            return render_template("pages/pulse/report_new.html",
-                                   categories_by_group=categories.groups())
+            return render_template(
+                "pages/pulse/report_new.html",
+                categories_by_group=categories.groups(),
+                preset_location_id=request.form.get("location_id", ""),
+            )
 
         location_id = request.form.get("location_id", "").strip() or None
         report = services.create_report(
@@ -56,9 +59,12 @@ def report_new():
         flash("Report posted.", "success")
         return redirect(url_for("pulse.report_detail", report_id=report.id))
 
-        return render_template("pages/pulse/report_new.html",
-                           categories_by_group=categories.groups(),
-                           preset_location_id=request.args.get("location_id", ""))
+    # GET
+    return render_template(
+        "pages/pulse/report_new.html",
+        categories_by_group=categories.groups(),
+        preset_location_id=request.args.get("location_id", ""),
+    )
 
 
 @bp.get("/report/<report_id>")

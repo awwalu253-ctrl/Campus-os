@@ -12,8 +12,9 @@ ADMIN_ROLES = ("platform_admin", "campus_admin", "moderator")
 
 
 def _kick_admins_to_dashboard():
-    """Admins never see the student onboarding flow."""
-    if current_user.is_authenticated and current_user.role in ADMIN_ROLES:
+    if current_user.is_authenticated and current_user.role in (
+        "platform_admin", "campus_admin", "moderator"
+    ):
         return redirect(url_for("admin.dashboard"))
     return None
 

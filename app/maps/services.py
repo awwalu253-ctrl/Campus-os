@@ -9,29 +9,70 @@ from app.maps.models import Location, LocationSuggestion
 
 
 # ── Read ──────────────────────────────────────────────────
-def approved_locations(campus_id: str, *, category: str | None = None,
-                       search: str | None = None, limit: int = 500):
-    stmt = select(Location).where(and_(
-        Location.campus_id == campus_id,
-        Location.status == "approved",
-    ))
+def _location_rows(campus_id: str, *, category: str | None = None,
+                   search: str | None = None, limit: int = 500):
+    """Return rows of (Location, lat, lng) — coordinates fetched in the
+    same query as the row itself, eliminating the previous N+1."""
+    stmt = (
+        select(
+            Location,
+            func.ST_Y(Location.point).label("lat"),
+            func.ST_X(Location.point).label("lng"),
+        )
+        .where(and_(
+            Location.campus_id == campus_id,
+            Location.status == "approved",
+        ))
+    )
     if category:
         stmt = stmt.where(Location.category == category)
     if search:
-        like = f"%{search.strip()}%"
-        stmt = stmt.where(Location.name.ilike(like))
+        stmt = stmt.where(Location.name.ilike(f"%{search.strip()}%"))
     stmt = stmt.order_by(Location.name).limit(limit)
-    return db.session.execute(stmt).scalars().all()
+    return db.session.execute(stmt).all()
+
+
+def approved_locations(campus_id: str, *, category: str | None = None,
+                       search: str | None = None, limit: int = 500):
+    """Kept for backward compatibility — returns ORM Location objects.
+
+    Prefer `approved_locations_geo()` for API responses that need lat/lng."""
+    rows = _location_rows(campus_id, category=category, search=search, limit=limit)
+    return [row[0] for row in rows]
+
+
+def approved_locations_geo(campus_id: str, *, category: str | None = None,
+                           search: str | None = None, limit: int = 500) -> list[dict]:
+    """Return serialized locations with lat/lng in a single query."""
+    rows = _location_rows(campus_id, category=category, search=search, limit=limit)
+    return [
+        {
+            "id": loc.id,
+            "name": loc.name,
+            "category": loc.category,
+            "description": loc.description,
+            "lat": float(lat) if lat is not None else None,
+            "lng": float(lng) if lng is not None else None,
+            "opening_hours": loc.opening_hours,
+            "phone": loc.phone,
+        }
+        for loc, lat, lng in rows
+    ]
 
 
 def locations_near(campus_id: str, lat: float, lng: float, *,
                    radius_m: int = 300, limit: int = 50):
-    """PostGIS: nearest N approved locations within radius_m meters."""
+    """PostGIS nearest N approved locations within radius_m meters."""
     point = ST_SetSRID(ST_MakePoint(lng, lat), 4326)
     distance = ST_Distance(Location.point, point)
 
     stmt = (
-        select(Location, distance.label("distance"))
+        select(
+            Location,
+            func.ST_Y(Location.point).label("lat"),
+            func.ST_X(Location.point).label("lng"),
+            distance.label("distance"),
+        )
         .where(and_(
             Location.campus_id == campus_id,
             Location.status == "approved",
@@ -47,22 +88,33 @@ def get_location(location_id: str) -> Location | None:
     return db.session.get(Location, location_id)
 
 
+def location_coords(location_id: str) -> tuple[float | None, float | None]:
+    """Fetch only lat/lng for one location in a single query."""
+    row = db.session.execute(
+        select(
+            func.ST_Y(Location.point),
+            func.ST_X(Location.point),
+        ).where(Location.id == location_id)
+    ).first()
+    if not row:
+        return None, None
+    return (
+        float(row[0]) if row[0] is not None else None,
+        float(row[1]) if row[1] is not None else None,
+    )
+
+
 def as_geojson(location: Location) -> dict:
-    """Serialize a Location row for the map frontend."""
-    # ST_X / ST_Y extraction
-    lat = db.session.execute(
-        select(func.ST_Y(Location.point)).where(Location.id == location.id)
-    ).scalar()
-    lng = db.session.execute(
-        select(func.ST_X(Location.point)).where(Location.id == location.id)
-    ).scalar()
+    """Kept for the single-location detail page. For lists, use
+    `approved_locations_geo()` which avoids the per-row query."""
+    lat, lng = location_coords(location.id)
     return {
         "id": location.id,
         "name": location.name,
         "category": location.category,
         "description": location.description,
-        "lat": float(lat) if lat is not None else None,
-        "lng": float(lng) if lng is not None else None,
+        "lat": lat,
+        "lng": lng,
         "opening_hours": location.opening_hours,
         "phone": location.phone,
     }
