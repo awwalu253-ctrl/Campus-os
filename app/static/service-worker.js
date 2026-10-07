@@ -6,7 +6,7 @@
    - API GETs: network-first, short cache. Never cache auth or mutations.
    - Never fabricate live data. */
 
-const VERSION = 'campus-os-v11';
+const VERSION = 'campus-os-v12';
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGES_CACHE = `${VERSION}-pages`;
 const OFFLINE_URL = '/offline';
@@ -21,8 +21,6 @@ const PRECACHE = [
   '/static/js/app.js',
   '/static/js/pwa/install.js',
   '/static/js/pwa/splash.js',
-  '/static/icons/logo.svg',
-  '/static/icons/logo-white.svg',
   '/manifest.webmanifest',
 ];
 

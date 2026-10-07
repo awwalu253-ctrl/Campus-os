@@ -11,6 +11,7 @@ services:
       - "5432:5432"
     volumes:
       - campusos_pgdata:/var/lib/postgresql/data
+      - ./scripts/init-test-db.sh:/docker-entrypoint-initdb.d/10-init-test-db.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U campusos -d campusos"]
       interval: 5s
@@ -53,6 +54,12 @@ services:
       - "5000:5000"
     volumes:
       - .:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
     command: >
       sh -c "
         flask db upgrade &&

@@ -23,5 +23,9 @@ def test_login_wrong_password(client):
     r = client.post("/auth/login", data={
         "email": "awwalu@example.com",
         "password": "nope",
-    })
+    }, follow_redirects=False)
+    print("\n--- DIAGNOSTIC ---")
+    print("STATUS:", r.status_code)
+    print("BODY:", r.data[:400])
+    print("--- END ---")
     assert b"Invalid" in r.data

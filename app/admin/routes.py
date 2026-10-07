@@ -2,7 +2,8 @@ from flask import Blueprint, render_template
 from flask_login import login_required
 
 from app.core.permissions import requires, Perm
-from app.models import User, University, Location
+from app.models import User, University
+from app.maps.models import Location
 from app.pulse.models import CampusReport
 from app.maps.models import LocationSuggestion
 

@@ -2,7 +2,7 @@ from geoalchemy2 import Geometry
 from sqlalchemy import func as sa_func
 
 from app.extensions import db
-from app.models.mixins import UUIDMixin, TimestampMixin
+from ..models.mixins import UUIDMixin, TimestampMixin
 
 
 LOCATION_STATUS = ("approved", "pending", "rejected")

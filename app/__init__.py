@@ -3,6 +3,7 @@ load_dotenv()
 
 import logging
 from flask import Flask, jsonify
+from sqlalchemy import text
 
 from app.config import get_config
 from app.extensions import db, migrate, login_manager, csrf, limiter
@@ -47,17 +48,20 @@ def create_app(config_name: str | None = None) -> Flask:
     db.init_app(app)
     migrate.init_app(app, db)
     csrf.init_app(app)
-
-    # Flask-Limiter: always init so @limiter.limit decorators are valid,
-    # even when disabled (they become no-ops internally).
     limiter.init_app(app)
-
     login_manager.init_app(app)
     login_manager.login_view = "auth.login"
     login_manager.login_message_category = "info"
 
     # ── Models ──────────────────────────────────────────
+    # Base models are imported via app.models. Feature models (pulse, maps)
+    # are imported explicitly here so they register with SQLAlchemy's
+    # metadata. Note: app.models.__init__ deliberately does NOT import
+    # feature models — doing so causes a circular import when a feature
+    # module is loaded standalone (e.g. by a test).
     from app import models  # noqa: F401
+    from app.pulse import models as _pulse_models  # noqa: F401
+    from app.maps import models as _maps_models  # noqa: F401
 
     # ── Blueprints ──────────────────────────────────────
     from app.auth.routes import bp as auth_bp
@@ -110,9 +114,9 @@ def create_app(config_name: str | None = None) -> Flask:
     def readyz():
         """Readiness — verifies DB connectivity."""
         try:
-            db.session.execute(db.text("SELECT 1"))
+            db.session.execute(text("SELECT 1"))
             return {"status": "ready", "db": "ok"}, 200
-        except Exception as e:
+        except Exception:
             app.logger.exception("Readiness check failed")
             return {"status": "not_ready", "db": "error"}, 503
 
@@ -122,7 +126,7 @@ def create_app(config_name: str | None = None) -> Flask:
         result = {"db": "ok", "redis": "unknown"}
 
         try:
-            db.session.execute(db.text("SELECT 1"))
+            db.session.execute(text("SELECT 1"))
         except Exception:
             result["db"] = "error"
 
