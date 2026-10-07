@@ -11,6 +11,8 @@
     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M8 10h8"/><path d="M8 14h6"/></svg>
   {% elif name == 'profile' %}
     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+  {% elif name == 'bell' %}
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
   {% endif %}
 {% endmacro %}
 
@@ -53,6 +55,43 @@
       <a class="icon-btn" href="{{ url_for('maps.index') }}" aria-label="Open map">
         {{ nav_icon('map') }}
       </a>
+
+      <div class="notif-bell">
+        <a class="icon-btn"
+           id="notif-bell"
+           href="{{ url_for('notifications_page.page') }}"
+           aria-label="Notifications"
+           aria-haspopup="true"
+           aria-expanded="false"
+           aria-controls="notif-dropdown">
+          {{ nav_icon('bell') }}
+          <span class="notification-badge" id="notif-badge" hidden aria-hidden="true"></span>
+        </a>
+
+        <div class="notif-dropdown"
+             id="notif-dropdown"
+             role="dialog"
+             aria-label="Recent notifications"
+             hidden>
+          <div class="notif-dropdown__head">
+            <h2 class="notif-dropdown__title">Notifications</h2>
+            <button type="button"
+                    class="btn btn--subtle btn--sm"
+                    id="notif-mark-all"
+                    hidden>
+              Mark all read
+            </button>
+          </div>
+          <ul class="notif-dropdown__list" id="notif-dropdown-list"></ul>
+          <div class="notif-dropdown__foot">
+            <a class="btn btn--subtle btn--sm"
+               href="{{ url_for('notifications_page.page') }}">
+              View all
+            </a>
+          </div>
+        </div>
+      </div>
+
       <a class="icon-btn" href="{{ url_for('users.profile') }}" aria-label="Profile">
         <span class="avatar" style="width:28px;height:28px;font-size:11px;">
           {{ current_user.display_name[:1]|upper }}
@@ -108,4 +147,15 @@
     </div>
   </div>
 </div>
+<script>
+  window.CAMPUS_OS_NOTIFICATIONS = {
+    apiList: "{{ url_for('notifications.list_notifications') }}",
+    apiUnreadCount: "{{ url_for('notifications.unread_count') }}",
+    apiReadOne: "{{ url_for('notifications.mark_read', notification_id='__ID__') }}",
+    apiReadAll: "{{ url_for('notifications.mark_all_read') }}",
+    pageUrl: "{{ url_for('notifications_page.page') }}",
+    mode: "shell"
+  };
+</script>
+<script src="{{ url_for('static', filename='js/notifications.js') }}" defer></script>
 {% endblock %}

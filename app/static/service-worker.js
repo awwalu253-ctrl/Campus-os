@@ -4,9 +4,10 @@
    - Static assets: stale-while-revalidate.
    - HTML: network-first, fall back to cache, fall back to /offline.
    - API GETs: network-first, short cache. Never cache auth or mutations.
+   - Never cache per-user endpoints such as notifications.
    - Never fabricate live data. */
 
-const VERSION = 'campus-os-v12';
+const VERSION = 'campus-os-v14';
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGES_CACHE = `${VERSION}-pages`;
 const OFFLINE_URL = '/offline';
@@ -39,8 +40,25 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-function isApiGet(url) {
-  return url.pathname.startsWith('/api/') && !url.pathname.startsWith('/api/auth');
+// API GETs that are safe to cache: campus-scoped data that is the same
+// for every user on a given campus within a short window.
+//
+// IMPORTANT: any future per-user API endpoint MUST be added to
+// isUncacheableApiGet below. Caching per-user responses leaks data
+// between sessions on a shared device.
+function isCacheableApiGet(url) {
+  if (!url.pathname.startsWith('/api/')) return false;
+  if (url.pathname.startsWith('/api/auth')) return false;
+  if (isUncacheableApiGet(url)) return false;
+  return true;
+}
+
+// API GETs that must never be cached. Network-only, no cache fallback.
+// If the network is down, the request fails and the client handles it.
+function isUncacheableApiGet(url) {
+  // Notifications are per-user and private.
+  if (url.pathname.startsWith('/api/v1/notifications')) return true;
+  return false;
 }
 
 self.addEventListener('fetch', (event) => {
@@ -61,8 +79,15 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // API GETs
-  if (isApiGet(url)) {
+  // Uncacheable API GETs — network-only, no fallback. Covers per-user
+  // endpoints such as notifications.
+  if (isUncacheableApiGet(url)) {
+    event.respondWith(fetch(req));
+    return;
+  }
+
+  // Cacheable API GETs — network-first with cache fallback.
+  if (isCacheableApiGet(url)) {
     event.respondWith(
       fetch(req).then((res) => {
         const copy = res.clone();

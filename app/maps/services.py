@@ -6,6 +6,8 @@ from sqlalchemy import and_, func, select
 from app.extensions import db
 from app.maps import categories as loc_cats
 from app.maps.models import Location, LocationSuggestion
+from app.notifications import services as notifications
+from app.notifications import types as ntypes
 
 
 # ── Read ──────────────────────────────────────────────────
@@ -196,6 +198,26 @@ def approve_suggestion(sug: LocationSuggestion, *, moderator_id: str,
     sug.moderated_at = datetime.now(timezone.utc)
     sug.moderation_note = (note or "")[:255] or None
     sug.approved_location_id = loc.id
+
+    # Notify the student who proposed the suggestion. The dedupe key
+    # ensures exactly one approval notification per suggestion, even if
+    # this function were ever re-run against the same row.
+    if sug.proposed_by:
+        notifications.create_notification_if_new(
+            recipient_id=sug.proposed_by,
+            type=ntypes.LOCATION_SUGGESTION_APPROVED,
+            title="Your location suggestion was approved",
+            body=(
+                f'"{sug.name}" has been added to Campus OS. '
+                "Thanks for helping map your campus."
+            ),
+            action_url=f"/map/location/{loc.id}",
+            campus_id=sug.campus_id,
+            related_entity_type="location_suggestion",
+            related_entity_id=sug.id,
+            dedupe_key=f"location-suggestion:{sug.id}:approved",
+        )
+
     return loc
 
 
@@ -207,6 +229,25 @@ def reject_suggestion(sug: LocationSuggestion, *, moderator_id: str,
     sug.moderated_by = moderator_id
     sug.moderated_at = datetime.now(timezone.utc)
     sug.moderation_note = (note or "")[:255] or None
+
+    # Notify the student who proposed the suggestion. The moderation
+    # note (if any) is moderator-only and intentionally NOT exposed to
+    # the student — no reason to include it in the notification body.
+    if sug.proposed_by:
+        notifications.create_notification_if_new(
+            recipient_id=sug.proposed_by,
+            type=ntypes.LOCATION_SUGGESTION_REJECTED,
+            title="Your location suggestion was not approved",
+            body=(
+                f'Your suggestion "{sug.name}" was reviewed '
+                "but was not approved."
+            ),
+            action_url="/map/suggest",
+            campus_id=sug.campus_id,
+            related_entity_type="location_suggestion",
+            related_entity_id=sug.id,
+            dedupe_key=f"location-suggestion:{sug.id}:rejected",
+        )
 
 
 def pending_suggestions(campus_id: str | None = None, *, limit: int = 100):

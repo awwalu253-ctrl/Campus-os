@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import logging
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request, redirect, url_for, flash
 from sqlalchemy import text
 
 from app.config import get_config
@@ -53,15 +53,24 @@ def create_app(config_name: str | None = None) -> Flask:
     login_manager.login_view = "auth.login"
     login_manager.login_message_category = "info"
 
+    @login_manager.unauthorized_handler
+    def _handle_unauthorized():
+        """Return JSON 401 for API paths; redirect to login for HTML paths."""
+        if request.path.startswith("/api/"):
+            return jsonify(error={"code": 401, "message": "Authentication required."}), 401
+        flash("Please sign in to continue.", "info")
+        return redirect(url_for("auth.login", next=request.full_path))
+
     # ── Models ──────────────────────────────────────────
-    # Base models are imported via app.models. Feature models (pulse, maps)
-    # are imported explicitly here so they register with SQLAlchemy's
-    # metadata. Note: app.models.__init__ deliberately does NOT import
-    # feature models — doing so causes a circular import when a feature
-    # module is loaded standalone (e.g. by a test).
+    # Base models are imported via app.models. Feature models (pulse, maps,
+    # notifications) are imported explicitly here so they register with
+    # SQLAlchemy's metadata. Note: app.models.__init__ deliberately does NOT
+    # import feature models — doing so causes a circular import when a
+    # feature module is loaded standalone (e.g. by a test).
     from app import models  # noqa: F401
     from app.pulse import models as _pulse_models  # noqa: F401
     from app.maps import models as _maps_models  # noqa: F401
+    from app.notifications import models as _notifications_models  # noqa: F401
 
     # ── Blueprints ──────────────────────────────────────
     from app.auth.routes import bp as auth_bp
@@ -72,6 +81,8 @@ def create_app(config_name: str | None = None) -> Flask:
     from app.admin.routes import bp as admin_bp
     from app.pulse.routes import bp as pulse_bp
     from app.maps.routes import bp as maps_bp
+    from app.notifications.routes import bp as notifications_bp
+    from app.notifications.routes import page_bp as notifications_page_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(users_bp)
@@ -81,6 +92,8 @@ def create_app(config_name: str | None = None) -> Flask:
     app.register_blueprint(admin_bp)
     app.register_blueprint(pulse_bp)
     app.register_blueprint(maps_bp)
+    app.register_blueprint(notifications_bp)
+    app.register_blueprint(notifications_page_bp)
 
     # ── Error handlers ──────────────────────────────────
     from app.core import errors

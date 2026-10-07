@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#17233F">
   <title>{% block title %}Campus OS{% endblock %} · {{ BRAND.name }}</title>
   <meta name="description" content="{{ BRAND.tagline }}">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
 
   <link rel="manifest" href="{{ url_for('pwa.manifest') }}">
   <link rel="icon" href="{{ url_for('static', filename='icons/favicon.svg') }}" type="image/svg+xml">

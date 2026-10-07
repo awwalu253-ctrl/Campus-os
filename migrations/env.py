@@ -38,7 +38,7 @@ EXCLUDE_TABLES = {
     "geocode_settings_default", "loader_lookuptables",
     "loader_platform", "loader_variables", "pagc_gaz", "pagc_lex",
     "pagc_rules", "place", "place_lookup", "secondary_unit_lookup",
-    "state", "street_type_lookup", "tabblock", "tabblock20",
+    "state", "state_lookup", "street_type_lookup", "tabblock", "tabblock20",
     "tract", "zcta5", "zip_lookup", "zip_lookup_all",
     "zip_lookup_base", "zip_state", "zip_state_loc",
 }

@@ -1,0 +1,402 @@
+/* Campus OS - Notifications frontend.
+ *
+ * Runs on every authenticated page (via app_shell.html). Two modes:
+ *   - "shell": bells + badge + dropdown only (default)
+ *   - "page":  shell features + full-page list + pagination + mark-all
+ *
+ * Config is set by an inline script block in the layout, as
+ * window.CAMPUS_OS_NOTIFICATIONS.
+ */
+(function () {
+  'use strict';
+
+  var cfg = window.CAMPUS_OS_NOTIFICATIONS;
+  if (!cfg) return;
+
+  var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+  var csrfToken = csrfMeta ? csrfMeta.content : '';
+
+  var mode = cfg.mode === 'page' ? 'page' : 'shell';
+  function isDesktop() {
+    return window.matchMedia('(min-width: 1024px)').matches;
+  }
+
+  var POLL_MS = 60000;
+  var DROPDOWN_LIMIT = 8;
+  var PAGE_LIMIT = 20;
+
+  var bell = document.getElementById('notif-bell');
+  var badge = document.getElementById('notif-badge');
+  var dropdown = document.getElementById('notif-dropdown');
+  var dropdownList = document.getElementById('notif-dropdown-list');
+  var dropdownMarkAll = document.getElementById('notif-mark-all');
+  var pageList = document.getElementById('notif-page-list');
+  var pageMore = document.getElementById('notif-page-more');
+  var pageMoreBtn = document.getElementById('notif-page-more-btn');
+  var pageMarkAll = document.getElementById('notif-page-mark-all');
+  var pageCount = document.getElementById('notif-page-count');
+  var pageStatus = document.getElementById('notif-page-status');
+
+  // ---------- Utilities ----------
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, function (c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+    });
+  }
+
+  function timeAgo(iso) {
+    if (!iso) return '';
+    var then = new Date(iso).getTime();
+    if (isNaN(then)) return '';
+    var secs = Math.floor((Date.now() - then) / 1000);
+    if (secs < 60) return 'just now';
+    var mins = Math.floor(secs / 60);
+    if (mins < 60) return mins + 'm ago';
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    var days = Math.floor(hrs / 24);
+    if (days < 7) return days + 'd ago';
+    var weeks = Math.floor(days / 7);
+    if (weeks < 5) return weeks + 'w ago';
+    return new Date(iso).toLocaleDateString();
+  }
+
+  function clearNode(node) {
+    while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  function apiGet(url) {
+    return fetch(url, { credentials: 'same-origin' }).then(function (res) {
+      if (!res.ok) throw new Error('GET ' + url + ' -> ' + res.status);
+      return res.json();
+    });
+  }
+
+  function apiPost(url) {
+    return fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'X-CSRFToken': csrfToken }
+    }).then(function (res) {
+      if (!res.ok && res.status !== 204) {
+        throw new Error('POST ' + url + ' -> ' + res.status);
+      }
+      if (res.status === 204) return null;
+      return res.json().catch(function () { return null; });
+    });
+  }
+
+  function readOneUrl(id) {
+    return cfg.apiReadOne.replace('__ID__', encodeURIComponent(id));
+  }
+
+  // ---------- Badge + polling ----------
+  function setBadge(count) {
+    if (!badge) return;
+    if (count > 0) {
+      badge.textContent = count > 99 ? '99+' : String(count);
+      badge.hidden = false;
+    } else {
+      badge.hidden = true;
+      badge.textContent = '';
+    }
+  }
+
+  function refreshUnreadCount() {
+    return apiGet(cfg.apiUnreadCount).then(function (data) {
+      setBadge(data.count || 0);
+    }).catch(function (err) {
+      console.warn('[notifications] unread count refresh failed', err);
+    });
+  }
+
+  // ---------- Rendering ----------
+  function renderItem(n, context) {
+    var li = document.createElement('li');
+    li.className = 'card notification-item' + (n.read_at ? '' : ' notification-item--unread');
+    li.dataset.id = n.id;
+    if (n.action_url) li.dataset.actionUrl = n.action_url;
+
+    var wrap = document.createElement(n.action_url ? 'a' : 'div');
+    wrap.className = 'notification-item__link';
+    if (n.action_url) wrap.href = n.action_url;
+
+    var top = document.createElement('div');
+    top.className = 'notification-item__top';
+
+    var title = document.createElement('h3');
+    title.className = 'notification-item__title';
+    title.textContent = n.title || '';
+    top.appendChild(title);
+
+    var meta = document.createElement('div');
+    meta.className = 'notification-item__meta';
+    var time = document.createElement('span');
+    time.className = 'notification-item__time';
+    time.textContent = timeAgo(n.created_at);
+    meta.appendChild(time);
+
+    wrap.appendChild(top);
+    if (n.body) {
+      var body = document.createElement('p');
+      body.className = 'notification-item__body';
+      body.textContent = n.body;
+      wrap.appendChild(body);
+    }
+    wrap.appendChild(meta);
+    li.appendChild(wrap);
+
+    if (context === 'dropdown' || context === 'page') {
+      li.addEventListener('click', function (ev) {
+        if (!n.read_at) {
+          n.read_at = new Date().toISOString();
+          li.classList.remove('notification-item--unread');
+          apiPost(readOneUrl(n.id))
+            .then(function () { return refreshUnreadCount(); })
+            .catch(function (err) { console.warn('[notifications] mark-read failed', err); });
+        }
+        if (!n.action_url) ev.preventDefault();
+        if (context === 'dropdown') closeDropdown();
+      });
+    }
+
+    return li;
+  }
+
+  function renderEmpty(container, message) {
+    var wrap = document.createElement('div');
+    wrap.className = 'empty notification-empty';
+    wrap.innerHTML =
+      '<div class="empty__icon">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>' +
+      '<path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>' +
+      '</svg></div>' +
+      '<div class="empty__title">No notifications</div>' +
+      '<div class="empty__body">' + escapeHtml(message || '') + '</div>';
+    container.appendChild(wrap);
+  }
+
+  function renderLoading(container) {
+    var wrap = document.createElement('div');
+    wrap.className = 'empty';
+    wrap.innerHTML =
+      '<div class="skeleton skeleton--line" style="width:60%;margin:0 auto 8px;"></div>' +
+      '<div class="skeleton skeleton--line" style="width:40%;margin:0 auto;"></div>';
+    container.appendChild(wrap);
+  }
+
+  function renderError(container, message) {
+    var wrap = document.createElement('div');
+    wrap.className = 'empty notification-empty';
+    wrap.innerHTML =
+      '<div class="empty__title">Couldn\u2019t load notifications</div>' +
+      '<div class="empty__body">' + escapeHtml(message || 'Try again in a moment.') + '</div>';
+    container.appendChild(wrap);
+  }
+
+  // ---------- Dropdown ----------
+  var dropdownLoaded = false;
+  var outsideClickHandler = null;
+  var escapeKeyHandler = null;
+
+  function openDropdown() {
+    if (!dropdown || !bell) return;
+    dropdown.hidden = false;
+    bell.setAttribute('aria-expanded', 'true');
+    if (!dropdownLoaded) loadDropdown();
+
+    escapeKeyHandler = function (ev) {
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        closeDropdown();
+      }
+    };
+    outsideClickHandler = function (ev) {
+      if (!dropdown || dropdown.hidden) return;
+      if (dropdown.contains(ev.target)) return;
+      if (bell && bell.contains(ev.target)) return;
+      closeDropdown();
+    };
+
+    document.addEventListener('keydown', escapeKeyHandler);
+    document.addEventListener('click', outsideClickHandler, true);
+  }
+
+  function closeDropdown() {
+    if (!dropdown || !bell) return;
+    dropdown.hidden = true;
+    bell.setAttribute('aria-expanded', 'false');
+    if (escapeKeyHandler) {
+      document.removeEventListener('keydown', escapeKeyHandler);
+      escapeKeyHandler = null;
+    }
+    if (outsideClickHandler) {
+      document.removeEventListener('click', outsideClickHandler, true);
+      outsideClickHandler = null;
+    }
+    bell.focus();
+  }
+
+  function loadDropdown() {
+    if (!dropdownList) return;
+    dropdownLoaded = true;
+    clearNode(dropdownList);
+    renderLoading(dropdownList);
+    apiGet(cfg.apiList + '?limit=' + DROPDOWN_LIMIT).then(function (data) {
+      clearNode(dropdownList);
+      var items = data.notifications || [];
+      if (items.length === 0) {
+        renderEmpty(dropdownList, 'You\u2019re all caught up.');
+        if (dropdownMarkAll) dropdownMarkAll.hidden = true;
+        return;
+      }
+      items.forEach(function (n) {
+        dropdownList.appendChild(renderItem(n, 'dropdown'));
+      });
+      if (dropdownMarkAll) {
+        var hasUnread = items.some(function (n) { return !n.read_at; });
+        dropdownMarkAll.hidden = !hasUnread;
+      }
+    }).catch(function () {
+      clearNode(dropdownList);
+      renderError(dropdownList, 'Couldn\u2019t load notifications.');
+    });
+  }
+
+  function wireBell() {
+    if (!bell) return;
+    bell.addEventListener('click', function (ev) {
+      if (!isDesktop()) return;
+      if (!dropdown) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (dropdown.hidden) {
+        openDropdown();
+      } else {
+        closeDropdown();
+      }
+    });
+  }
+
+  function wireDropdownMarkAll() {
+    if (!dropdownMarkAll) return;
+    dropdownMarkAll.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      apiPost(cfg.apiReadAll).then(function () {
+        if (dropdownList) {
+          var unread = dropdownList.querySelectorAll('.notification-item--unread');
+          for (var i = 0; i < unread.length; i++) {
+            unread[i].classList.remove('notification-item--unread');
+          }
+        }
+        dropdownMarkAll.hidden = true;
+        return refreshUnreadCount();
+      }).catch(function (err) {
+        console.warn('[notifications] mark-all failed', err);
+      });
+    });
+  }
+
+  // ---------- Page mode ----------
+  var pageState = {
+    loaded: [],
+    nextCursor: null,
+    loading: false
+  };
+
+  function loadPage(reset) {
+    if (!pageList || pageState.loading) return;
+    pageState.loading = true;
+
+    if (reset) {
+      clearNode(pageList);
+      pageState.loaded = [];
+      pageState.nextCursor = null;
+      if (pageStatus) clearNode(pageStatus);
+      if (pageStatus) renderLoading(pageStatus);
+      if (pageMore) pageMore.hidden = true;
+    }
+
+    var params = new URLSearchParams();
+    params.set('limit', String(PAGE_LIMIT));
+    if (pageState.nextCursor) {
+      params.set('before', pageState.nextCursor.before);
+      params.set('before_id', pageState.nextCursor.before_id);
+    }
+
+    apiGet(cfg.apiList + '?' + params.toString()).then(function (data) {
+      if (pageStatus) clearNode(pageStatus);
+
+      var items = data.notifications || [];
+      pageState.loaded = pageState.loaded.concat(items);
+      pageState.nextCursor = data.next_cursor;
+
+      if (reset && items.length === 0) {
+        renderEmpty(pageList, 'You\u2019re all caught up. Nothing new here.');
+        if (pageMarkAll) pageMarkAll.hidden = true;
+        if (pageCount) pageCount.textContent = '';
+      } else {
+        var frag = document.createDocumentFragment();
+        items.forEach(function (n) { frag.appendChild(renderItem(n, 'page')); });
+        pageList.appendChild(frag);
+
+        var unread = pageState.loaded.filter(function (n) { return !n.read_at; }).length;
+        if (pageCount) {
+          pageCount.textContent = unread > 0 ? (unread + ' unread') : 'All caught up';
+        }
+        if (pageMarkAll) pageMarkAll.hidden = unread === 0;
+      }
+
+      if (pageMore) pageMore.hidden = !pageState.nextCursor;
+    }).catch(function () {
+      if (pageStatus) clearNode(pageStatus);
+      if (reset) {
+        clearNode(pageList);
+        renderError(pageStatus || pageList, 'Couldn\u2019t load notifications.');
+      }
+    }).finally(function () {
+      pageState.loading = false;
+    });
+  }
+
+  function wirePage() {
+    if (!pageList) return;
+
+    loadPage(true);
+
+    if (pageMoreBtn) {
+      pageMoreBtn.addEventListener('click', function () { loadPage(false); });
+    }
+
+    if (pageMarkAll) {
+      pageMarkAll.addEventListener('click', function () {
+        apiPost(cfg.apiReadAll).then(function () {
+          var unread = pageList.querySelectorAll('.notification-item--unread');
+          for (var i = 0; i < unread.length; i++) {
+            unread[i].classList.remove('notification-item--unread');
+          }
+          pageMarkAll.hidden = true;
+          if (pageCount) pageCount.textContent = 'All caught up';
+          return refreshUnreadCount();
+        }).catch(function (err) {
+          console.warn('[notifications] mark-all failed', err);
+        });
+      });
+    }
+  }
+
+  // ---------- Boot ----------
+  wireBell();
+  wireDropdownMarkAll();
+
+  if (badge || dropdown) {
+    refreshUnreadCount();
+    setInterval(refreshUnreadCount, POLL_MS);
+  }
+
+  if (mode === 'page') {
+    wirePage();
+  }
+})();

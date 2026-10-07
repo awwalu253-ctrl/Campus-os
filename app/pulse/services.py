@@ -5,6 +5,8 @@ from sqlalchemy.orm import selectinload
 
 from app.extensions import db
 from app.models import User
+from app.notifications import services as notifications
+from app.notifications import types as ntypes
 from app.pulse import categories
 from app.pulse.models import CampusReport, ReportConfirmation, ReportFlag
 from app.users import trust as trust_engine
@@ -96,6 +98,31 @@ def confirm_report(*, report: CampusReport, user: User) -> ReportConfirmation:
     trust_engine.on_confirmation_given(user, agreed_with_majority=True)
 
     report.confidence = compute_confidence(report)
+
+    # Milestone notification — only at 1, 5, 10, 25, 50 confirmations.
+    if (
+        reporter
+        and reporter.id != user.id
+        and report.confirmation_count in ntypes.CONFIRMATION_MILESTONES
+    ):
+        cat_meta = categories.get(report.category) or {}
+        cat_label = cat_meta.get("label", report.category.replace("_", " "))
+        notifications.create_notification_if_new(
+            recipient_id=reporter.id,
+            type=ntypes.REPORT_CONFIRMATION_MILESTONE,
+            title="Your report is gaining traction",
+            body=(
+                f"Your report about \"{cat_label}\" has been confirmed "
+                f"{report.confirmation_count} "
+                f"time{'s' if report.confirmation_count != 1 else ''}."
+            ),
+            action_url=f"/pulse/report/{report.id}",
+            campus_id=report.campus_id,
+            related_entity_type="campus_report",
+            related_entity_id=report.id,
+            dedupe_key=f"report-confirmation:{report.id}:{report.confirmation_count}",
+        )
+
     return existing or report  # caller commits
 
 
@@ -126,6 +153,66 @@ def disagree_report(*, report: CampusReport, user: User) -> None:
     trust_engine.on_confirmation_given(user, agreed_with_majority=False)
     report.confidence = compute_confidence(report)
 
+    if reporter and reporter.id != user.id:
+        cat_meta = categories.get(report.category) or {}
+        cat_label = cat_meta.get("label", report.category.replace("_", " "))
+        notifications.create_notification_if_new(
+            recipient_id=reporter.id,
+            type=ntypes.REPORT_DISAGREEMENT,
+            title="Someone disagreed with your report",
+            body=f"A student disagreed with your report about \"{cat_label}\".",
+            action_url=f"/pulse/report/{report.id}",
+            campus_id=report.campus_id,
+            related_entity_type="campus_report",
+            related_entity_id=report.id,
+            dedupe_key=f"report-disagreement:{report.id}:{user.id}",
+        )
+
+    if reporter and reporter.id != user.id:
+        cat_meta = categories.get(report.category) or {}
+        cat_label = cat_meta.get("label", report.category.replace("_", " "))
+        notifications.create_notification_if_new(
+            recipient_id=reporter.id,
+            type=ntypes.REPORT_DISAGREEMENT,
+            title="Someone disagreed with your report",
+            body=f"A student disagreed with your report about \"{cat_label}\".",
+            action_url=f"/pulse/report/{report.id}",
+            campus_id=report.campus_id,
+            related_entity_type="campus_report",
+            related_entity_id=report.id,
+            dedupe_key=f"report-disagreement:{report.id}:{user.id}",
+        )
+
+    if reporter and reporter.id != user.id:
+        cat_meta = categories.get(report.category) or {}
+        cat_label = cat_meta.get("label", report.category.replace("_", " "))
+        notifications.create_notification_if_new(
+            recipient_id=reporter.id,
+            type=ntypes.REPORT_DISAGREEMENT,
+            title="Someone disagreed with your report",
+            body=f"A student disagreed with your report about \"{cat_label}\".",
+            action_url=f"/pulse/report/{report.id}",
+            campus_id=report.campus_id,
+            related_entity_type="campus_report",
+            related_entity_id=report.id,
+            dedupe_key=f"report-disagreement:{report.id}:{user.id}",
+        )
+
+    if reporter and reporter.id != user.id:
+        cat_meta = categories.get(report.category) or {}
+        cat_label = cat_meta.get("label", report.category.replace("_", " "))
+        notifications.create_notification_if_new(
+            recipient_id=reporter.id,
+            type=ntypes.REPORT_DISAGREEMENT,
+            title="Someone disagreed with your report",
+            body=f"A student disagreed with your report about \"{cat_label}\".",
+            action_url=f"/pulse/report/{report.id}",
+            campus_id=report.campus_id,
+            related_entity_type="campus_report",
+            related_entity_id=report.id,
+            dedupe_key=f"report-disagreement:{report.id}:{user.id}",
+        )
+
 
 # ── Flag ──────────────────────────────────────────────────
 def flag_report(*, report: CampusReport, user: User, reason: str | None = None) -> None:
@@ -142,6 +229,24 @@ def flag_report(*, report: CampusReport, user: User, reason: str | None = None) 
         trust_engine.on_report_flagged(reporter)
 
     report.confidence = compute_confidence(report)
+
+    if reporter and reporter.id != user.id:
+        cat_meta = categories.get(report.category) or {}
+        cat_label = cat_meta.get("label", report.category.replace("_", " "))
+        notifications.create_notification_if_new(
+            recipient_id=reporter.id,
+            type=ntypes.REPORT_FLAGGED,
+            title="Your report was flagged",
+            body=(
+                f"Someone flagged your report about \"{cat_label}\". "
+                "A moderator will review it."
+            ),
+            action_url=f"/pulse/report/{report.id}",
+            campus_id=report.campus_id,
+            related_entity_type="campus_report",
+            related_entity_id=report.id,
+            dedupe_key=f"report-flag:{report.id}:{user.id}",
+        )
 
 
 # ── Queries ───────────────────────────────────────────────
@@ -188,6 +293,27 @@ def sweep_expired() -> dict:
     )
     for r in expired:
         r.status = "expired"
+
+        # Notify the reporter only if the report expired without any
+        # confirmations. Reports that got confirmed are not "stale" —
+        # they simply timed out, which is the normal lifecycle.
+        if r.reported_by and r.confirmation_count == 0:
+            cat_meta = categories.get(r.category) or {}
+            cat_label = cat_meta.get("label", r.category.replace("_", " "))
+            notifications.create_notification_if_new(
+                recipient_id=r.reported_by,
+                type=ntypes.REPORT_EXPIRED_STALE,
+                title="Your report has gone stale",
+                body=(
+                    f"Your report about \"{cat_label}\" has expired "
+                    "without receiving any confirmation."
+                ),
+                action_url=f"/pulse/report/{r.id}",
+                campus_id=r.campus_id,
+                related_entity_type="campus_report",
+                related_entity_id=r.id,
+                dedupe_key=f"report-expired-stale:{r.id}",
+            )
 
     active = (
         db.session.query(CampusReport)

@@ -1,0 +1,42 @@
+{% extends "layouts/app_shell.html" %}
+{% block title %}Notifications{% endblock %}
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/notifications.css') }}">
+{% endblock %}
+
+{% block content %}
+<header class="notifications-head">
+  <div>
+    <h1 class="notifications-head__title">Notifications</h1>
+    <p class="notifications-head__count" id="notif-page-count"></p>
+  </div>
+  <button type="button"
+          class="btn btn--ghost btn--sm"
+          id="notif-page-mark-all"
+          hidden>
+    Mark all read
+  </button>
+</header>
+
+<div id="notif-page-status"></div>
+
+<ul class="notifications-list" id="notif-page-list"></ul>
+
+<div class="notifications-load-more" id="notif-page-more" hidden>
+  <button type="button" class="btn btn--ghost" id="notif-page-more-btn">
+    Load more
+  </button>
+</div>
+
+<script>
+  window.CAMPUS_OS_NOTIFICATIONS = {
+    apiList: "{{ url_for('notifications.list_notifications') }}",
+    apiUnreadCount: "{{ url_for('notifications.unread_count') }}",
+    apiReadOne: "{{ url_for('notifications.mark_read', notification_id='__ID__') }}",
+    apiReadAll: "{{ url_for('notifications.mark_all_read') }}",
+    pageUrl: "{{ url_for('notifications_page.page') }}",
+    mode: "page"
+  };
+</script>
+<script src="{{ url_for('static', filename='js/notifications.js') }}" defer></script>
+{% endblock %}
