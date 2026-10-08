@@ -505,28 +505,48 @@ function wirePushCard() {
     });
   }
 
+  var vapidKeyCache = null;
+
   function subscribe() {
+    if (!swReg || !swReg.pushManager) {
+      showStatus('Notifications are not available right now. Try reopening the app.', true);
+      return;
+    }
+
     buttonEl.disabled = true;
     clearStatus();
 
-    Notification.requestPermission().then(function (permission) {
-      if (permission !== 'granted') {
-        showStatus('Permission was not granted. You can enable it in your browser settings.', true);
-        buttonEl.disabled = false;
-        return;
-      }
-
-      return fetch(vapidEndpoint, { credentials: 'same-origin' })
+    // Step 1: get the VAPID key BEFORE asking permission, so the
+    // subscribe() call can fire synchronously from the tap handler.
+    var getKey = Promise.resolve(vapidKeyCache);
+    if (!getKey) {
+      getKey = fetch(vapidEndpoint, { credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
         .then(function (data) {
           if (!data || !data.key) throw new Error('VAPID key unavailable');
-          var applicationServerKey = urlBase64ToUint8Array(data.key);
-          return swReg.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: applicationServerKey
-          });
-        })
-        .then(function (subscription) {
+          vapidKeyCache = data.key;
+          return vapidKeyCache;
+        });
+    }
+
+    getKey.then(function (key) {
+      // Step 2: request permission. On iOS this MUST be the first
+      // await in the tap handler. The subscribe() call must follow
+      // in the same synchronous continuation — no further awaits.
+      return Notification.requestPermission().then(function (permission) {
+        if (permission !== 'granted') {
+          showStatus('Permission was not granted. You can enable it in your browser settings.', true);
+          buttonEl.disabled = false;
+          return null;
+        }
+
+        // Step 3: subscribe. This call must happen immediately after
+        // the permission resolves — no awaits in between.
+        return swReg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(key)
+        }).then(function (subscription) {
+          // Step 4: persist the subscription. This CAN be async.
           var json = subscription.toJSON();
           return postJSON(subscribeEndpoint, {
             endpoint: json.endpoint,
@@ -534,17 +554,76 @@ function wirePushCard() {
               p256dh: json.keys.p256dh,
               auth: json.keys.auth
             }
+          }).then(function () {
+            setSubscribed();
+            showStatus('You\u2019re subscribed on this device.', false);
           });
-        })
-        .then(function () {
-          setSubscribed();
-          showStatus('You\u2019re subscribed on this device.', false);
-        })
-        .catch(function (err) {
-          console.warn('[push] subscribe failed', err);
-          showStatus('Couldn\u2019t enable notifications. Try again in a moment.', true);
-          buttonEl.disabled = false;
         });
+      });
+    }).catch(function (err) {
+      console.warn('[push] subscribe failed', err);
+      showStatus('Couldn\u2019t enable notifications. Try again in a moment.', true);
+      buttonEl.disabled = false;
+    });
+  }  var vapidKeyCache = null;
+
+  function subscribe() {
+    if (!swReg || !swReg.pushManager) {
+      showStatus('Notifications are not available right now. Try reopening the app.', true);
+      return;
+    }
+
+    buttonEl.disabled = true;
+    clearStatus();
+
+    // Step 1: get the VAPID key BEFORE asking permission, so the
+    // subscribe() call can fire synchronously from the tap handler.
+    var getKey = Promise.resolve(vapidKeyCache);
+    if (!getKey) {
+      getKey = fetch(vapidEndpoint, { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data || !data.key) throw new Error('VAPID key unavailable');
+          vapidKeyCache = data.key;
+          return vapidKeyCache;
+        });
+    }
+
+    getKey.then(function (key) {
+      // Step 2: request permission. On iOS this MUST be the first
+      // await in the tap handler. The subscribe() call must follow
+      // in the same synchronous continuation — no further awaits.
+      return Notification.requestPermission().then(function (permission) {
+        if (permission !== 'granted') {
+          showStatus('Permission was not granted. You can enable it in your browser settings.', true);
+          buttonEl.disabled = false;
+          return null;
+        }
+
+        // Step 3: subscribe. This call must happen immediately after
+        // the permission resolves — no awaits in between.
+        return swReg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(key)
+        }).then(function (subscription) {
+          // Step 4: persist the subscription. This CAN be async.
+          var json = subscription.toJSON();
+          return postJSON(subscribeEndpoint, {
+            endpoint: json.endpoint,
+            keys: {
+              p256dh: json.keys.p256dh,
+              auth: json.keys.auth
+            }
+          }).then(function () {
+            setSubscribed();
+            showStatus('You\u2019re subscribed on this device.', false);
+          });
+        });
+      });
+    }).catch(function (err) {
+      console.warn('[push] subscribe failed', err);
+      showStatus('Couldn\u2019t enable notifications. Try again in a moment.', true);
+      buttonEl.disabled = false;
     });
   }
 
