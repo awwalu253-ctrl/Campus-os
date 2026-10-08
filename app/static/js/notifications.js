@@ -1,12 +1,4 @@
-/* Campus OS - Notifications frontend.
- *
- * Runs on every authenticated page (via app_shell.html). Two modes:
- *   - "shell": bells + badge + dropdown only (default)
- *   - "page":  shell features + full-page list + pagination + mark-all
- *
- * Config is set by an inline script block in the layout, as
- * window.CAMPUS_OS_NOTIFICATIONS.
- */
+/* Campus OS - Notifications frontend. */
 (function () {
   'use strict';
 
@@ -37,7 +29,6 @@
   var pageCount = document.getElementById('notif-page-count');
   var pageStatus = document.getElementById('notif-page-status');
 
-  // ---------- Utilities ----------
   function escapeHtml(s) {
     return String(s || '').replace(/[&<>"']/g, function (c) {
       return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
@@ -90,7 +81,6 @@
     return cfg.apiReadOne.replace('__ID__', encodeURIComponent(id));
   }
 
-  // ---------- Badge + polling ----------
   function setBadge(count) {
     if (!badge) return;
     if (count > 0) {
@@ -110,7 +100,6 @@
     });
   }
 
-  // ---------- Rendering ----------
   function renderItem(n, context) {
     var li = document.createElement('li');
     li.className = 'card notification-item' + (n.read_at ? '' : ' notification-item--unread');
@@ -196,7 +185,6 @@
     container.appendChild(wrap);
   }
 
-  // ---------- Dropdown ----------
   var dropdownLoaded = false;
   var outsideClickHandler = null;
   var escapeKeyHandler = null;
@@ -299,7 +287,6 @@
     });
   }
 
-  // ---------- Page mode ----------
   var pageState = {
     loaded: [],
     nextCursor: null,
@@ -387,7 +374,6 @@
     }
   }
 
-  // ---------- Boot ----------
   wireBell();
   wireDropdownMarkAll();
 
@@ -400,16 +386,10 @@
     wirePage();
   }
 
-  // ---------- Push subscription (profile page only) ----------
   wirePushCard();
 })();
 
 
-// ═══════════════════════════════════════════════════════
-// Push subscription management.
-// Runs only when the profile page is loaded and the push
-// card element exists.
-// ═══════════════════════════════════════════════════════
 function wirePushCard() {
   var card = document.getElementById('push-card');
   if (!card) return;
@@ -423,7 +403,6 @@ function wirePushCard() {
   var subscribeEndpoint = card.dataset.subscribeEndpoint;
   var unsubscribeEndpoint = card.dataset.unsubscribeEndpoint;
 
-  // --- Support detection ---
   var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   var standalone = window.matchMedia('(display-mode: standalone)').matches
     || window.navigator.standalone === true;
@@ -433,13 +412,12 @@ function wirePushCard() {
     && 'Notification' in window;
 
   if (!hasPush) return;
-  // iOS requires the PWA to be installed and opened as standalone.
   if (isIOS && !standalone) return;
 
-  // Reveal the card; JS decides the exact state.
   card.style.display = '';
 
   var swReg = null;
+  var vapidKeyCache = null;
 
   function showStatus(message, isError) {
     statusEl.textContent = message;
@@ -471,6 +449,9 @@ function wirePushCard() {
   }
 
   function urlBase64ToUint8Array(base64String) {
+    if (!base64String || typeof base64String !== 'string') {
+      throw new Error('Invalid VAPID key');
+    }
     var padding = '='.repeat((4 - (base64String.length % 4)) % 4);
     var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
     var rawData = atob(base64);
@@ -505,8 +486,6 @@ function wirePushCard() {
     });
   }
 
-  var vapidKeyCache = null;
-
   function subscribe() {
     if (!swReg || !swReg.pushManager) {
       showStatus('Notifications are not available right now. Try reopening the app.', true);
@@ -516,10 +495,10 @@ function wirePushCard() {
     buttonEl.disabled = true;
     clearStatus();
 
-    // Step 1: get the VAPID key BEFORE asking permission, so the
-    // subscribe() call can fire synchronously from the tap handler.
-    var getKey = Promise.resolve(vapidKeyCache);
-    if (!getKey) {
+    var getKey;
+    if (vapidKeyCache) {
+      getKey = Promise.resolve(vapidKeyCache);
+    } else {
       getKey = fetch(vapidEndpoint, { credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
         .then(function (data) {
@@ -530,9 +509,6 @@ function wirePushCard() {
     }
 
     getKey.then(function (key) {
-      // Step 2: request permission. On iOS this MUST be the first
-      // await in the tap handler. The subscribe() call must follow
-      // in the same synchronous continuation — no further awaits.
       return Notification.requestPermission().then(function (permission) {
         if (permission !== 'granted') {
           showStatus('Permission was not granted. You can enable it in your browser settings.', true);
@@ -540,73 +516,10 @@ function wirePushCard() {
           return null;
         }
 
-        // Step 3: subscribe. This call must happen immediately after
-        // the permission resolves — no awaits in between.
         return swReg.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(key)
         }).then(function (subscription) {
-          // Step 4: persist the subscription. This CAN be async.
-          var json = subscription.toJSON();
-          return postJSON(subscribeEndpoint, {
-            endpoint: json.endpoint,
-            keys: {
-              p256dh: json.keys.p256dh,
-              auth: json.keys.auth
-            }
-          }).then(function () {
-            setSubscribed();
-            showStatus('You\u2019re subscribed on this device.', false);
-          });
-        });
-      });
-    }).catch(function (err) {
-      console.warn('[push] subscribe failed', err);
-      showStatus('Couldn\u2019t enable notifications. Try again in a moment.', true);
-      buttonEl.disabled = false;
-    });
-  }  var vapidKeyCache = null;
-
-  function subscribe() {
-    if (!swReg || !swReg.pushManager) {
-      showStatus('Notifications are not available right now. Try reopening the app.', true);
-      return;
-    }
-
-    buttonEl.disabled = true;
-    clearStatus();
-
-    // Step 1: get the VAPID key BEFORE asking permission, so the
-    // subscribe() call can fire synchronously from the tap handler.
-    var getKey = Promise.resolve(vapidKeyCache);
-    if (!getKey) {
-      getKey = fetch(vapidEndpoint, { credentials: 'same-origin' })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          if (!data || !data.key) throw new Error('VAPID key unavailable');
-          vapidKeyCache = data.key;
-          return vapidKeyCache;
-        });
-    }
-
-    getKey.then(function (key) {
-      // Step 2: request permission. On iOS this MUST be the first
-      // await in the tap handler. The subscribe() call must follow
-      // in the same synchronous continuation — no further awaits.
-      return Notification.requestPermission().then(function (permission) {
-        if (permission !== 'granted') {
-          showStatus('Permission was not granted. You can enable it in your browser settings.', true);
-          buttonEl.disabled = false;
-          return null;
-        }
-
-        // Step 3: subscribe. This call must happen immediately after
-        // the permission resolves — no awaits in between.
-        return swReg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(key)
-        }).then(function (subscription) {
-          // Step 4: persist the subscription. This CAN be async.
           var json = subscription.toJSON();
           return postJSON(subscribeEndpoint, {
             endpoint: json.endpoint,
