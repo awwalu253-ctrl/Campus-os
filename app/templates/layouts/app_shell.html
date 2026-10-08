@@ -148,14 +148,19 @@
   </div>
 </div>
 <script>
-  window.CAMPUS_OS_NOTIFICATIONS = {
-    apiList: "{{ url_for('notifications.list_notifications') }}",
-    apiUnreadCount: "{{ url_for('notifications.unread_count') }}",
-    apiReadOne: "{{ url_for('notifications.mark_read', notification_id='__ID__') }}",
-    apiReadAll: "{{ url_for('notifications.mark_all_read') }}",
-    pageUrl: "{{ url_for('notifications_page.page') }}",
-    mode: "shell"
-  };
+  // Merge into any config a page template may have set first, so page-level
+  // overrides (like mode: "page" on the notifications page) are preserved.
+  window.CAMPUS_OS_NOTIFICATIONS = Object.assign(
+    {
+      apiList: "{{ url_for('notifications.list_notifications') }}",
+      apiUnreadCount: "{{ url_for('notifications.unread_count') }}",
+      apiReadOne: "{{ url_for('notifications.mark_read', notification_id='__ID__') }}",
+      apiReadAll: "{{ url_for('notifications.mark_all_read') }}",
+      pageUrl: "{{ url_for('notifications_page.page') }}",
+      mode: "shell"
+    },
+    window.CAMPUS_OS_NOTIFICATIONS || {}
+  );
 </script>
 <script src="{{ url_for('static', filename='js/notifications.js') }}" defer></script>
 {% endblock %}
