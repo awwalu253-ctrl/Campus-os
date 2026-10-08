@@ -535,7 +535,11 @@ function wirePushCard() {
       });
     }).catch(function (err) {
       console.warn('[push] subscribe failed', err);
-      showStatus('Couldn\u2019t enable notifications. Try again in a moment.', true);
+      var detail = 'Couldn\u2019t enable notifications. Try again in a moment.';
+      if (err) {
+        detail += ' [' + (err.name || 'Error') + ': ' + (err.message || String(err)) + ']';
+      }
+      showStatus(detail, true);
       buttonEl.disabled = false;
     });
   }
