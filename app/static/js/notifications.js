@@ -483,7 +483,31 @@ function wirePushCard() {
   function initialise(reg) {
     swReg = reg;
     return reg.pushManager.getSubscription().then(function (existing) {
-      if (existing) setSubscribed(); else setUnsubscribed();
+      if (!existing) {
+        setUnsubscribed();
+        return;
+      }
+      // The browser already has a push subscription for this device.
+      // It may belong to a previous user (if accounts were switched or
+      // the previous user was deleted). Re-post it to the server so the
+      // row is reassigned to the current user, then confirm subscribed
+      // state. The endpoint is idempotent — safe to call on every load.
+      var json = existing.toJSON();
+      return postJSON(subscribeEndpoint, {
+        endpoint: json.endpoint,
+        keys: {
+          p256dh: json.keys.p256dh,
+          auth: json.keys.auth
+        }
+      }).then(function () {
+        setSubscribed();
+      }).catch(function (err) {
+        // If the server rejects the re-registration (e.g. because the
+        // subscription was deleted server-side), fall back to the
+        // unsubscribed state so the user can re-enable cleanly.
+        console.warn('[push] re-register on load failed', err);
+        setUnsubscribed();
+      });
     }).catch(function () {
       setUnsubscribed();
     });

@@ -1,0 +1,5 @@
+id,email,role,status,display_name,created_at
+90ec74b0-1a3c-415a-aae0-f20b1c9c44bd,campusos@gmail.com,platform_admin,active,Unknown,2026-10-05 20:13:34.322562+00:00
+f45adcf7-a446-4a27-8420-da4d5cee1ecf,test3@gmail.com,student,active,Testuser3,2026-10-05 20:58:10.263603+00:00
+ad9b932b-2899-4629-b02c-3bf491dfb143,test4@gmail.com,student,active,Testuser4,2026-10-05 21:06:56.610936+00:00
+93e81c3b-a22f-4561-8abe-d2f11826c77c,test@gmail.com,student,active,Test User2,2026-10-05 17:05:29.354904+00:00
