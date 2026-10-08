@@ -420,7 +420,6 @@ function wirePushCard() {
   if (!hasPush) return;
   if (isIOS && !standalone) return;
 
-  card.style.display = '';
 
   var swReg = null;
   var vapidKeyCache = null;
@@ -486,10 +485,13 @@ function wirePushCard() {
   function initialise(reg) {
     swReg = reg;
 
-    // Card state must be driven by the server. The browser may hold a
+    // Card state is driven by the server. The browser may hold a
     // leftover subscription from a previous session; that's not the
     // source of truth. Ask the server whether THIS user has a
     // subscription for THIS browser endpoint.
+    //
+    // The card stays hidden until the server answers, so the user
+    // never sees a stale "Enable" that flips to "Disable".
     return reg.pushManager.getSubscription().then(function (existing) {
       var endpoint = existing ? existing.endpoint : null;
       var url = statusEndpoint;
@@ -504,10 +506,12 @@ function wirePushCard() {
           } else {
             setUnsubscribed();
           }
+          card.style.display = '';
         });
     }).catch(function (err) {
       console.warn('[push] status check failed', err);
       setUnsubscribed();
+      card.style.display = '';
     });
   }
 

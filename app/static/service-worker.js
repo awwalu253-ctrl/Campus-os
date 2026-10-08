@@ -7,7 +7,7 @@
    - Never cache per-user endpoints such as notifications.
    - Never fabricate live data. */
 
-const VERSION = 'campus-os-v22';
+const VERSION = 'campus-os-v23';
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGES_CACHE = `${VERSION}-pages`;
 const OFFLINE_URL = '/offline';
