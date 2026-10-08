@@ -1,6 +1,7 @@
-// Custom "Add to Home Screen" experience (per spec §7).
+// Custom "Add to Home Screen" experience.
 (function () {
   const DISMISS_KEY = 'campusos.install.dismissedAt';
+  const INSTALLED_KEY = 'campusos.install.installed';
   const COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
 
   const card = document.getElementById('install-card');
@@ -8,13 +9,21 @@
 
   const acceptBtn = card.querySelector('[data-install-accept]');
   const dismissBtn = card.querySelector('[data-install-dismiss]');
+
   const standalone = window.matchMedia('(display-mode: standalone)').matches
     || window.navigator.standalone === true;
 
-  if (standalone) return; // already installed
+  // Already running as an installed PWA: never show the card.
+  if (standalone) return;
 
+  // Previously recorded that this device installed the app: never show
+  // the card again, even if the browser re-fires beforeinstallprompt.
+  // This survives browser restarts until site data is cleared.
+  if (localStorage.getItem(INSTALLED_KEY) === 'true') return;
+
+  // The user dismissed the card recently: honour the cooldown.
   const dismissedAt = Number(localStorage.getItem(DISMISS_KEY) || 0);
-  if (Date.now() - dismissedAt < COOLDOWN_MS) return;
+  if (dismissedAt && Date.now() - dismissedAt < COOLDOWN_MS) return;
 
   const ua = navigator.userAgent.toLowerCase();
   const isIOS = /iphone|ipad|ipod/.test(ua);
@@ -22,15 +31,22 @@
 
   let deferredPrompt = null;
 
+  // Chrome/Edge/Android fire this when the app is installable.
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
     show(isAndroid ? 'android' : 'generic');
   });
 
+  // Fires after a successful install. Record it so we never show the
+  // card again.
+  window.addEventListener('appinstalled', () => {
+    localStorage.setItem(INSTALLED_KEY, 'true');
+    hide();
+  });
+
   // iOS Safari: no beforeinstallprompt. Show manual instructions.
-  if (isIOS && !standalone) {
-    // Only show if Safari (not in-app browsers)
+  if (isIOS) {
     if (/safari/.test(ua) && !/crios|fxios|edgios/.test(ua)) {
       setTimeout(() => show('ios'), 2500);
     }
@@ -41,7 +57,10 @@
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       deferredPrompt = null;
-      if (outcome === 'accepted') hide();
+      if (outcome === 'accepted') {
+        localStorage.setItem(INSTALLED_KEY, 'true');
+        hide();
+      }
     } else if (isIOS) {
       showIOSInstructions();
     }

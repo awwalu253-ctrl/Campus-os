@@ -859,6 +859,10 @@
   animation: slide-up var(--t-slow) ease-out;
 }
 
+.install-card[hidden] {
+  display: none;
+}
+
 .install-card__body strong {
   display: block;
   font-size: var(--fs-md);
