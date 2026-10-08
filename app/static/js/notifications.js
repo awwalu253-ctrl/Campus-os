@@ -406,6 +406,9 @@ function wirePushCard() {
   var subscribeEndpoint = card.dataset.subscribeEndpoint;
   var unsubscribeEndpoint = card.dataset.unsubscribeEndpoint;
 
+  // Derive the push-status endpoint from the subscribe endpoint.
+  var statusEndpoint = subscribeEndpoint.replace(/\/subscribe$/, '/push-status');
+
   var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   var standalone = window.matchMedia('(display-mode: standalone)').matches
     || window.navigator.standalone === true;
@@ -482,33 +485,28 @@ function wirePushCard() {
 
   function initialise(reg) {
     swReg = reg;
+
+    // Card state must be driven by the server. The browser may hold a
+    // leftover subscription from a previous session; that's not the
+    // source of truth. Ask the server whether THIS user has a
+    // subscription for THIS browser endpoint.
     return reg.pushManager.getSubscription().then(function (existing) {
-      if (!existing) {
-        setUnsubscribed();
-        return;
+      var endpoint = existing ? existing.endpoint : null;
+      var url = statusEndpoint;
+      if (endpoint) {
+        url += '?endpoint=' + encodeURIComponent(endpoint);
       }
-      // The browser already has a push subscription for this device.
-      // It may belong to a previous user (if accounts were switched or
-      // the previous user was deleted). Re-post it to the server so the
-      // row is reassigned to the current user, then confirm subscribed
-      // state. The endpoint is idempotent — safe to call on every load.
-      var json = existing.toJSON();
-      return postJSON(subscribeEndpoint, {
-        endpoint: json.endpoint,
-        keys: {
-          p256dh: json.keys.p256dh,
-          auth: json.keys.auth
-        }
-      }).then(function () {
-        setSubscribed();
-      }).catch(function (err) {
-        // If the server rejects the re-registration (e.g. because the
-        // subscription was deleted server-side), fall back to the
-        // unsubscribed state so the user can re-enable cleanly.
-        console.warn('[push] re-register on load failed', err);
-        setUnsubscribed();
-      });
-    }).catch(function () {
+      return fetch(url, { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data && data.subscribed) {
+            setSubscribed();
+          } else {
+            setUnsubscribed();
+          }
+        });
+    }).catch(function (err) {
+      console.warn('[push] status check failed', err);
       setUnsubscribed();
     });
   }
@@ -518,6 +516,7 @@ function wirePushCard() {
       showStatus('Notifications are not available right now. Try reopening the app.', true);
       return;
     }
+    if (buttonEl.disabled) return;
 
     buttonEl.disabled = true;
     clearStatus();
@@ -572,6 +571,8 @@ function wirePushCard() {
   }
 
   function unsubscribe() {
+    if (buttonEl.disabled) return;
+
     buttonEl.disabled = true;
     clearStatus();
 

@@ -7,7 +7,7 @@
    - Never cache per-user endpoints such as notifications.
    - Never fabricate live data. */
 
-const VERSION = 'campus-os-v16';
+const VERSION = 'campus-os-v22';
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGES_CACHE = `${VERSION}-pages`;
 const OFFLINE_URL = '/offline';
@@ -54,16 +54,14 @@ function isCacheableApiGet(url) {
 }
 
 // API GETs that must never be cached. Network-only, no cache fallback.
-// If the network is down, the request fails and the client handles it.
 function isUncacheableApiGet(url) {
-  // Notifications are per-user and private.
   if (url.pathname.startsWith('/api/v1/notifications')) return true;
   return false;
 }
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-  if (req.method !== 'GET') return; // never cache mutations
+  if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
@@ -79,8 +77,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Uncacheable API GETs — network-only, no fallback. Covers per-user
-  // endpoints such as notifications.
+  // Uncacheable API GETs — network-only, no fallback.
   if (isUncacheableApiGet(url)) {
     event.respondWith(fetch(req));
     return;
@@ -120,7 +117,6 @@ self.addEventListener('message', (event) => {
 // ═══════════════════════════════════════════════════════
 
 self.addEventListener('push', (event) => {
-  // Payload is JSON: {title, body, url, tag}
   let data = {};
   if (event.data) {
     try {
@@ -150,14 +146,12 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // If a Campus OS window is already open, focus it and navigate.
       for (const client of clientList) {
         if (client.url.startsWith(self.location.origin) && 'focus' in client) {
           client.navigate(targetUrl);
           return client.focus();
         }
       }
-      // Otherwise open a new one.
       if (self.clients.openWindow) {
         return self.clients.openWindow(targetUrl);
       }

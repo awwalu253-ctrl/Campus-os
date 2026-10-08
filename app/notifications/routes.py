@@ -20,10 +20,8 @@ blueprints cannot host routes with unrelated prefixes.
 """
 from datetime import datetime
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, current_app, jsonify, render_template, request
 from flask_login import current_user, login_required
-
-from flask import current_app
 
 from app.extensions import db, limiter
 from app.notifications import services
@@ -43,7 +41,6 @@ def _error(code: int, message: str):
 def _parse_iso8601(value: str) -> datetime | None:
     """Parse an ISO-8601 timestamp, returning None on failure."""
     try:
-        # Accept a trailing 'Z' as UTC.
         if value.endswith("Z"):
             value = value[:-1] + "+00:00"
         return datetime.fromisoformat(value)
@@ -56,18 +53,7 @@ def _parse_iso8601(value: str) -> datetime | None:
 @login_required
 @limiter.limit("120 per minute")
 def list_notifications():
-    """List the current user's notifications, newest first.
-
-    Query parameters:
-      limit       — 1..50, default 20
-      before      — ISO-8601 timestamp cursor (created_at of the last item)
-      before_id   — notification id cursor (id of the last item)
-      unread_only — "true"/"1" to restrict to unread
-
-    Cursor pagination uses (before, before_id) as a composite key. Both
-    must be supplied together; supplying only one is treated as no cursor
-    and returns the newest page.
-    """
+    """List the current user's notifications, newest first."""
     raw_limit = request.args.get("limit", str(DEFAULT_LIMIT))
     try:
         limit = int(raw_limit)
@@ -127,13 +113,7 @@ def unread_count():
 @login_required
 @limiter.limit("60 per minute")
 def mark_read(notification_id: str):
-    """Mark a single notification as read.
-
-    Returns 204 on success — even if the notification was already read,
-    because the operation is idempotent.
-
-    Returns 404 if the notification does not exist for this user.
-    """
+    """Mark a single notification as read. Returns 204 on success."""
     ok = services.mark_notification_read(notification_id, current_user.id)
     if not ok:
         return _error(404, "Notification not found.")
@@ -141,39 +121,35 @@ def mark_read(notification_id: str):
     return "", 204
 
 
-# ── Web Push ──────────────────────────────────────────────
+# ── Mark all read ─────────────────────────────────────────
+@bp.post("/read-all")
+@login_required
+@limiter.limit("10 per minute")
+def mark_all_read():
+    """Mark every unread notification for the current user as read."""
+    count = services.mark_all_notifications_read(current_user.id)
+    db.session.commit()
+    return jsonify({"marked": count}), 200
+
+
+# ── Web Push: VAPID public key ────────────────────────────
 @bp.get("/vapid-public-key")
 @login_required
 @limiter.limit("60 per minute")
 def vapid_public_key():
-    """Return the VAPID public key the client needs to subscribe.
-
-    The public key is safe to expose — it identifies the server to the
-    push service. The private key never leaves the server.
-    """
+    """Return the VAPID public key the client needs to subscribe."""
     key = current_app.config.get("VAPID_PUBLIC_KEY", "")
     if not key:
         return _error(503, "Push notifications are not configured.")
     return jsonify({"key": key}), 200
 
 
+# ── Web Push: subscribe ───────────────────────────────────
 @bp.post("/subscribe")
 @login_required
 @limiter.limit("20 per minute")
 def subscribe():
-    """Register a Web Push subscription for the current user.
-
-    Body (JSON):
-      {
-        "endpoint": "https://...",
-        "keys": { "p256dh": "...", "auth": "..." }
-      }
-
-    Idempotent on endpoint: if the endpoint already exists, the row is
-    updated (keys and user_agent) rather than duplicated. This handles
-    the case where a browser regenerates keys for the same endpoint,
-    or a user re-enables notifications after previously disabling them.
-    """
+    """Register a Web Push subscription for the current user."""
     data = request.get_json(silent=True) or {}
 
     endpoint = (data.get("endpoint") or "").strip()
@@ -198,11 +174,6 @@ def subscribe():
     existing = PushSubscription.query.filter_by(endpoint=endpoint).first()
 
     if existing is not None:
-        # The endpoint is a globally unique identifier. If it already
-        # exists for this user, refresh the keys. If it exists for a
-        # different user, the browser must have changed hands — reassign
-        # to the current user, because the subscription is bound to the
-        # device, not the previous account.
         existing.user_id = current_user.id
         existing.p256dh = p256dh
         existing.auth = auth
@@ -222,19 +193,12 @@ def subscribe():
     return jsonify({"status": "subscribed"}), 201
 
 
+# ── Web Push: unsubscribe ─────────────────────────────────
 @bp.post("/unsubscribe")
 @login_required
 @limiter.limit("20 per minute")
 def unsubscribe():
-    """Remove a Web Push subscription.
-
-    Body (JSON):
-      { "endpoint": "https://..." }
-
-    Only deletes subscriptions owned by the current user. Attempting
-    to unsubscribe another user's endpoint returns success silently
-    (no information disclosure about whether the endpoint exists).
-    """
+    """Remove a Web Push subscription owned by the current user."""
     data = request.get_json(silent=True) or {}
     endpoint = (data.get("endpoint") or "").strip()
 
@@ -249,32 +213,33 @@ def unsubscribe():
     db.session.commit()
     return jsonify({"status": "unsubscribed", "deleted": deleted}), 200
 
-# ── Mark all read ─────────────────────────────────────────
-@bp.post("/read-all")
-@login_required
-@limiter.limit("10 per minute")
-def mark_all_read():
-    """Mark every unread notification for the current user as read.
 
-    Returns the number of rows updated.
+# ── Web Push: status ──────────────────────────────────────
+@bp.get("/push-status")
+@login_required
+@limiter.limit("60 per minute")
+def push_status():
+    """Return whether the current user has a push subscription.
+
+    Optionally scope to a specific browser endpoint via ?endpoint=...
+    so the client can verify that *this specific device* is registered
+    for the *current* user.
     """
-    count = services.mark_all_notifications_read(current_user.id)
-    db.session.commit()
-    return jsonify({"marked": count}), 200
+    endpoint = (request.args.get("endpoint") or "").strip() or None
+
+    q = PushSubscription.query.filter_by(user_id=current_user.id)
+    if endpoint:
+        q = q.filter_by(endpoint=endpoint)
+
+    return jsonify({"subscribed": q.count() > 0}), 200
 
 
 # ── Page blueprint ────────────────────────────────────────
-# Separate blueprint from the JSON API. The API lives under
-# /api/v1/notifications; the page lives under /notifications.
 page_bp = Blueprint("notifications_page", __name__, url_prefix="/notifications")
 
 
 @page_bp.get("/")
 @login_required
 def page():
-    """Server-rendered notifications page.
-
-    The page shell is rendered server-side. The list itself is loaded
-    client-side by /static/js/notifications.js via the JSON API.
-    """
+    """Server-rendered notifications page."""
     return render_template("pages/notifications/index.html")
