@@ -2,20 +2,23 @@
 
 Design rules enforced by this module:
 
-1. Never raises to the caller. Push delivery failure must never propagate
-   into a request transaction or a Celery task.
+1. Never raises to the caller. Push delivery failure must never
+   propagate into a request transaction or a Celery task.
 2. Never logs subscription endpoints, payloads, or VAPID keys.
 3. Deletes subscriptions on 404/410 (permanent invalid).
 4. Leaves subscriptions in place on transient failures (500, timeout,
    network error) so they can be retried on the next dispatch.
 5. Enforces a per-call timeout and a per-request attempt cap.
 6. Uses the current_app config for VAPID and policy.
-7. Runs inside a Flask app context.
+7. Establishes its own Flask app context when needed, so it is safe to
+   call from a request, a Celery task, or an after_commit listener that
+   may fire after the request context has been torn down.
 """
+import json
 import logging
 from datetime import datetime, timezone
 
-from flask import current_app
+from flask import current_app, has_app_context
 from pywebpush import WebPushException, webpush
 
 from app.extensions import db
@@ -25,14 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 class PushResult:
-    """Result of one push dispatch run.
-
-    Attributes:
-        sent:        number of successful deliveries
-        deleted:     number of subscriptions deleted (404/410)
-        failed:      number of transient failures (kept, not retried here)
-        skipped:     number of subscriptions beyond the cap
-    """
+    """Result of one push dispatch run."""
 
     __slots__ = ("sent", "deleted", "failed", "skipped")
 
@@ -54,8 +50,8 @@ class PushResult:
 def _build_payload(notification) -> dict:
     """Construct the payload sent to the browser.
 
-    Keep it small. The service worker will use these fields to render
-    the OS notification. action_url is the deep link target.
+    Keep it small. The service worker uses these fields to render the
+    OS notification and to deep-link on click.
     """
     return {
         "title": notification.title or "Campus OS",
@@ -66,12 +62,7 @@ def _build_payload(notification) -> dict:
 
 
 def _vapid_claims() -> dict:
-    """Build the VAPID claims dict from config.
-
-    pywebpush expects {'sub': 'mailto:...'}. If the subject is empty
-    or malformed, we still attempt the send — some push services are
-    lenient, and a hard failure here would break all push delivery.
-    """
+    """Build the VAPID claims dict from config."""
     subject = current_app.config.get("VAPID_SUBJECT") or "mailto:admin@campusos.app"
     return {"sub": subject}
 
@@ -79,14 +70,12 @@ def _vapid_claims() -> dict:
 def _delete_subscription(sub: PushSubscription, reason: str) -> None:
     """Delete a subscription that the push service has rejected.
 
-    Commits immediately in its own transaction. This function is only
-    called after the caller's transaction has already committed (from
-    the after_commit listener), so the current session is free to start
-    a new transaction and commit it.
+    Commits immediately in its own transaction. Called only after the
+    caller's transaction has already committed (from the after_commit
+    listener), so the current session is free to start a new
+    transaction and commit it.
 
-    Never raises. A failure to delete is logged and ignored — the
-    subscription will be retried on the next dispatch, and if the
-    endpoint really is dead, the next send will get another 410.
+    Never raises. A failure to delete is logged and ignored.
     """
     logger.info(
         "push: deleting stale subscription id=%s reason=%s",
@@ -96,7 +85,9 @@ def _delete_subscription(sub: PushSubscription, reason: str) -> None:
         db.session.delete(sub)
         db.session.commit()
     except Exception:
-        logger.exception("push: failed to delete stale subscription id=%s", sub.id)
+        logger.exception(
+            "push: failed to delete stale subscription id=%s", sub.id,
+        )
         try:
             db.session.rollback()
         except Exception:
@@ -122,7 +113,7 @@ def send_to_subscription(
                     "auth": subscription.auth,
                 },
             },
-            data=__import__("json").dumps(payload),
+            data=json.dumps(payload),
             vapid_private_key=current_app.config["VAPID_PRIVATE_KEY"],
             vapid_claims=_vapid_claims(),
             timeout=timeout,
@@ -131,8 +122,6 @@ def send_to_subscription(
         return "sent"
 
     except WebPushException as exc:
-        # Inspect the response status if present. 404 and 410 are
-        # permanent — the endpoint is gone, the subscription is dead.
         response = getattr(exc, "response", None)
         status = getattr(response, "status_code", None)
 
@@ -147,8 +136,6 @@ def send_to_subscription(
         return "failed"
 
     except Exception as exc:
-        # Timeout, DNS, TLS handshake failure, connection reset,
-        # anything else. Never let it escape.
         logger.warning(
             "push: unexpected failure id=%s error=%s",
             subscription.id, type(exc).__name__,
@@ -159,19 +146,36 @@ def send_to_subscription(
 def dispatch_for_notification(notification) -> PushResult:
     """Send a push for one notification to all its subscriptions.
 
-    Behaviour:
-      - If PUSH_ENABLED is False, returns an empty result immediately.
-      - If VAPID private key is missing, logs a warning and returns.
-      - If no subscriptions exist for the recipient, returns empty.
-      - Caps at PUSH_MAX_PER_REQUEST subscriptions. Extra ones are
-        counted in result.skipped and logged once. They are NOT
-        deleted — they will be dispatched on the next notification.
-      - Does NOT commit. The caller commits after the loop.
+    Safe to call from a request, from a Celery task, or from an
+    SQLAlchemy after_commit listener that may fire after the request
+    context has been torn down. Pushes its own app context if one
+    isn't already active.
 
     This function NEVER raises.
     """
     result = PushResult()
 
+    if has_app_context():
+        return _dispatch_inner(notification, result)
+
+    # No active app context. Establish one, dispatch, tear it down.
+    try:
+        from app import create_app
+        app = create_app()
+    except Exception:
+        logger.exception("push: could not create app for dispatch")
+        return result
+
+    try:
+        with app.app_context():
+            return _dispatch_inner(notification, result)
+    except Exception:
+        logger.exception("push: unexpected error during dispatch")
+        return result
+
+
+def _dispatch_inner(notification, result: PushResult) -> PushResult:
+    """The actual dispatch work. Runs inside a Flask app context."""
     if not current_app.config.get("PUSH_ENABLED", True):
         return result
 
