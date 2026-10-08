@@ -394,6 +394,9 @@ function wirePushCard() {
   var card = document.getElementById('push-card');
   if (!card) return;
 
+  var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+  var csrfToken = csrfMeta ? csrfMeta.content : '';
+
   var titleEl = document.getElementById('push-card-title');
   var bodyEl = document.getElementById('push-card-body');
   var buttonEl = document.getElementById('push-card-button');
