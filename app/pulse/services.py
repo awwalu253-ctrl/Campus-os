@@ -3,8 +3,11 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import selectinload
 
+from sqlalchemy import select
+
 from app.extensions import db
 from app.models import User
+from app.models.user import StudentProfile
 from app.notifications import services as notifications
 from app.notifications import types as ntypes
 from app.pulse import categories
@@ -43,8 +46,8 @@ def create_report(*, user: User, campus_id: str, category: str,
     if not categories.is_valid(category):
         raise ValueError(f"Unknown category: {category}")
 
-    meta = categories.get(category)
-    ttl = timedelta(minutes=meta["default_ttl_min"])
+    cat_meta = categories.get(category)
+    ttl = timedelta(minutes=cat_meta["default_ttl_min"])
 
     report = CampusReport(
         campus_id=campus_id,
@@ -59,7 +62,73 @@ def create_report(*, user: User, campus_id: str, category: str,
     db.session.add(report)
     db.session.flush()
     trust_engine.on_report_created(user)
+
+    if ntypes.is_campus_notifiable(category):
+        _notify_campus_of_report(report, reporter_id=user.id)
+
     return report
+
+
+def _notify_campus_of_report(report: CampusReport, *, reporter_id: str) -> int:
+    """Fan out a campus-wide notification for a report.
+
+    Recipient selection happens in the database: active, non-deleted
+    users whose StudentProfile.campus_id matches the report's campus,
+    excluding the reporter. One notification row per recipient.
+
+    Dedupe key is (recipient_id, f"campus-report:{report.id}"). The
+    partial unique index uq_notifications_recipient_dedupe guarantees
+    at most one row per recipient for this report even if the caller
+    retries.
+
+    Runs inside the caller's transaction. Does NOT commit.
+
+    Returns the number of notifications actually inserted (0 if all
+    were deduped).
+    """
+    cat_meta = categories.get(report.category) or {}
+    cat_label = cat_meta.get("label") or report.category.replace("_", " ")
+    group = cat_meta.get("group", "Campus")
+
+    title = f"New {group.lower()} report on campus"
+    body = f'A new {group.lower()} report was posted: "{cat_label}".'
+    if report.description:
+        snippet = report.description.strip()[:100]
+        if snippet:
+            body = f'{body.rstrip(".")} — {snippet}'
+    action_url = f"/pulse/report/{report.id}"
+
+    # Recipients: active students on this campus, excluding the reporter.
+    recipient_stmt = (
+        select(StudentProfile.user_id)
+        .join(User, User.id == StudentProfile.user_id)
+        .where(StudentProfile.campus_id == report.campus_id)
+        .where(User.status == "active")
+        .where(User.deleted_at.is_(None))
+        .where(StudentProfile.user_id != reporter_id)
+    )
+    recipient_ids = [row[0] for row in db.session.execute(recipient_stmt).all()]
+
+    if not recipient_ids:
+        return 0
+
+    inserted = 0
+    dedupe_key = f"campus-report:{report.id}"
+    for recipient_id in recipient_ids:
+        result = notifications.create_notification_if_new(
+            recipient_id=recipient_id,
+            type=ntypes.CAMPUS_SAFETY_REPORT,
+            title=title,
+            body=body,
+            action_url=action_url,
+            campus_id=report.campus_id,
+            related_entity_type="campus_report",
+            related_entity_id=report.id,
+            dedupe_key=dedupe_key,
+        )
+        if result is not None:
+            inserted += 1
+    return inserted
 
 
 # ── Confirm / disagree ────────────────────────────────────
