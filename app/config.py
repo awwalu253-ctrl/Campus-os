@@ -103,6 +103,16 @@ class BaseConfig:
     # ── Sentry (optional) ───────────────────────────────
     SENTRY_DSN = os.getenv("SENTRY_DSN", "")
 
+    # ── Web Push (VAPID) ────────────────────────────────
+    VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
+    VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
+    VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "mailto:admin@campusos.app")
+
+    # Push dispatch policy
+    PUSH_ENABLED = _bool("PUSH_ENABLED", True)
+    PUSH_TIMEOUT_SECONDS = _int("PUSH_TIMEOUT_SECONDS", 5)
+    PUSH_MAX_PER_REQUEST = _int("PUSH_MAX_PER_REQUEST", 50)
+
 
 class DevelopmentConfig(BaseConfig):
     DEBUG = True
@@ -113,6 +123,7 @@ class TestingConfig(BaseConfig):
     TESTING = True
     WTF_CSRF_ENABLED = False
     RATELIMIT_ENABLED = False
+    PUSH_ENABLED = False  # tests must never make real push calls
     SQLALCHEMY_DATABASE_URI = _normalize_db_url(
         os.getenv("TEST_DATABASE_URL",
                   "postgresql+psycopg://campusos:campusos@localhost:5432/campusos_test")

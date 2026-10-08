@@ -49,6 +49,8 @@ htmlcov/
 .tox/
 .nox/
 
+*.vapid
+
 # ── Logs & OS junk ─────────────────────────────────────
 *.log
 .DS_Store

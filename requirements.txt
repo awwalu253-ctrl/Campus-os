@@ -46,3 +46,7 @@ psycopg2-binary==2.9.9
 gunicorn==22.0.0
 
 sentry-sdk[flask]==2.19.2
+
+# Web Push (VAPID + ECDH encryption)
+pywebpush==2.0.0
+cryptography==43.0.1

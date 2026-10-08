@@ -1,11 +1,88 @@
 from datetime import datetime, timezone
 
+from flask import current_app
 from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import event as sa_event
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.orm import Session
 
 from app.extensions import db
 from app.notifications import types as ntypes
 from app.notifications.models import Notification
+
+
+# ── Push dispatch policy ──────────────────────────────────
+# Only these notification types trigger a Web Push delivery. All
+# other types are in-app only. This is enforced at queue time, not
+# at dispatch time, so no other type ever enters the queue.
+_PUSH_ELIGIBLE_TYPES = frozenset({
+    ntypes.CAMPUS_SAFETY_REPORT,
+    ntypes.REPORT_CONFIRMATION_MILESTONE,
+})
+
+
+def _queue_push_for(notification: Notification) -> None:
+    """Append a push-eligible notification to the session's pending
+    push queue.
+
+    The queue lives on ``db.session.info['_pending_pushes']`` and is
+    drained by the ``after_commit`` listener once the caller commits.
+
+    If the caller rolls back, the queue is discarded with the session
+    and push is never attempted. This is what guarantees the
+    "commit then push, never the other way around" ordering.
+    """
+    if notification.type not in _PUSH_ELIGIBLE_TYPES:
+        return
+
+    try:
+        if not current_app:
+            return
+    except RuntimeError:
+        return
+
+    if not current_app.config.get("PUSH_ENABLED", True):
+        return
+
+    queue = db.session.info.setdefault("_pending_pushes", [])
+    queue.append(notification)
+
+@sa_event.listens_for(Session, "after_commit")
+def _drain_push_queue(session) -> None:
+    """After a successful commit, drain the pending-push queue.
+
+    Runs once per session commit. Dispatches push for any queued
+    notifications. Push failures are logged but never propagated — the
+    notification is already committed and must not be affected by
+    delivery problems.
+
+    IMPORTANT: this listener runs *after* the commit has completed and
+    the session is in 'committed' state. It must NOT attempt to write
+    to the database through this session. Any persistence that push
+    delivery needs (e.g. deleting a stale subscription) is committed
+    by push.py using its own session transaction.
+    """
+    queue = session.info.pop("_pending_pushes", None)
+    if not queue:
+        return
+
+    # Import lazily to avoid a circular import at module load time.
+    from app.notifications import push as push_sender
+
+    for notification in queue:
+        try:
+            result = push_sender.dispatch_for_notification(notification)
+            if result.sent or result.deleted or result.failed or result.skipped:
+                current_app.logger.info(
+                    "push: dispatch notification=%s result=%s",
+                    notification.id, result.as_dict(),
+                )
+        except Exception:
+            # Absolute last resort. Never let push break the caller.
+            current_app.logger.exception(
+                "push: unhandled error dispatching notification=%s",
+                notification.id,
+            )
 
 
 # ── Create ────────────────────────────────────────────────
@@ -45,6 +122,7 @@ def create_notification(
     )
     db.session.add(notification)
     db.session.flush()
+    _queue_push_for(notification)
     return notification
 
 
@@ -109,7 +187,10 @@ def create_notification_if_new(
         return None
 
     db.session.flush()
-    return db.session.get(Notification, result[0])
+    notification = db.session.get(Notification, result[0])
+    if notification is not None:
+        _queue_push_for(notification)
+    return notification
 
 
 # ── Read ──────────────────────────────────────────────────
@@ -139,7 +220,6 @@ def get_user_notifications(
         stmt = stmt.where(Notification.read_at.is_(None))
 
     if before_created_at is not None and before_id is not None:
-        # Composite cursor: strictly older than the tuple (created_at, id).
         stmt = stmt.where(
             or_(
                 Notification.created_at < before_created_at,
@@ -207,8 +287,6 @@ def mark_notification_read(notification_id: str, user_id: str) -> bool:
     if result.rowcount > 0:
         return True
 
-    # Row already read OR row doesn't exist / isn't ours.
-    # Distinguish with a lightweight existence check scoped to user.
     exists = db.session.execute(
         select(Notification.id)
         .where(Notification.id == notification_id)

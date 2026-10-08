@@ -87,3 +87,46 @@ class Notification(UUIDMixin, TimestampMixin, db.Model):
 
     def __repr__(self) -> str:
         return f"<Notification {self.type} → {self.recipient_id}>"
+
+class PushSubscription(UUIDMixin, TimestampMixin, db.Model):
+    """A single Web Push subscription for a single browser/device.
+
+    A user may have multiple subscriptions (one per device). Each
+    subscription is uniquely identified by its endpoint URL, which the
+    browser provides during `pushManager.subscribe()`. The endpoint
+    string can be long (Apple's is ~200 chars; Chrome's is similar), so
+    we store it as TEXT.
+
+    p256dh and auth are the client's public key material for encrypting
+    the payload. They are not secrets — the endpoint is the only opaque
+    identifier and it is already unguessable. Storing them as-is is the
+    standard practice.
+    """
+
+    __tablename__ = "push_subscriptions"
+
+    user_id = db.Column(
+        db.String(36),
+        db.ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # The push service endpoint URL. Globally unique per subscription.
+    endpoint = db.Column(db.Text, nullable=False, unique=True, index=True)
+
+    # Client public key (base64url) for ECDH key agreement.
+    p256dh = db.Column(db.String(255), nullable=False)
+
+    # Client auth secret (base64url) for HKDF.
+    auth = db.Column(db.String(64), nullable=False)
+
+    # Optional device hint for the UI. Not used for logic.
+    user_agent = db.Column(db.String(255), nullable=True)
+
+    # Set on last successful delivery. Purely informational.
+    last_success_at = db.Column(db.DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        db.Index("ix_push_subscriptions_user_created", "user_id", "created_at"),
+    )

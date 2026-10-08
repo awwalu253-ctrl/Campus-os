@@ -23,8 +23,11 @@ from datetime import datetime
 from flask import Blueprint, jsonify, render_template, request
 from flask_login import current_user, login_required
 
+from flask import current_app
+
 from app.extensions import db, limiter
 from app.notifications import services
+from app.notifications.models import PushSubscription
 
 bp = Blueprint("notifications", __name__, url_prefix="/api/v1/notifications")
 
@@ -137,6 +140,114 @@ def mark_read(notification_id: str):
     db.session.commit()
     return "", 204
 
+
+# ── Web Push ──────────────────────────────────────────────
+@bp.get("/vapid-public-key")
+@login_required
+@limiter.limit("60 per minute")
+def vapid_public_key():
+    """Return the VAPID public key the client needs to subscribe.
+
+    The public key is safe to expose — it identifies the server to the
+    push service. The private key never leaves the server.
+    """
+    key = current_app.config.get("VAPID_PUBLIC_KEY", "")
+    if not key:
+        return _error(503, "Push notifications are not configured.")
+    return jsonify({"key": key}), 200
+
+
+@bp.post("/subscribe")
+@login_required
+@limiter.limit("20 per minute")
+def subscribe():
+    """Register a Web Push subscription for the current user.
+
+    Body (JSON):
+      {
+        "endpoint": "https://...",
+        "keys": { "p256dh": "...", "auth": "..." }
+      }
+
+    Idempotent on endpoint: if the endpoint already exists, the row is
+    updated (keys and user_agent) rather than duplicated. This handles
+    the case where a browser regenerates keys for the same endpoint,
+    or a user re-enables notifications after previously disabling them.
+    """
+    data = request.get_json(silent=True) or {}
+
+    endpoint = (data.get("endpoint") or "").strip()
+    keys = data.get("keys") or {}
+    p256dh = (keys.get("p256dh") or "").strip()
+    auth = (keys.get("auth") or "").strip()
+
+    if not endpoint or not p256dh or not auth:
+        return _error(400, "endpoint, keys.p256dh and keys.auth are required.")
+
+    if not endpoint.startswith("https://"):
+        return _error(400, "endpoint must be an https URL.")
+
+    if len(endpoint) > 4096:
+        return _error(400, "endpoint is too long.")
+
+    if len(p256dh) > 255 or len(auth) > 64:
+        return _error(400, "subscription keys are malformed.")
+
+    user_agent = (request.headers.get("User-Agent") or "")[:255] or None
+
+    existing = PushSubscription.query.filter_by(endpoint=endpoint).first()
+
+    if existing is not None:
+        # The endpoint is a globally unique identifier. If it already
+        # exists for this user, refresh the keys. If it exists for a
+        # different user, the browser must have changed hands — reassign
+        # to the current user, because the subscription is bound to the
+        # device, not the previous account.
+        existing.user_id = current_user.id
+        existing.p256dh = p256dh
+        existing.auth = auth
+        existing.user_agent = user_agent
+        db.session.commit()
+        return jsonify({"status": "updated"}), 200
+
+    sub = PushSubscription(
+        user_id=current_user.id,
+        endpoint=endpoint,
+        p256dh=p256dh,
+        auth=auth,
+        user_agent=user_agent,
+    )
+    db.session.add(sub)
+    db.session.commit()
+    return jsonify({"status": "subscribed"}), 201
+
+
+@bp.post("/unsubscribe")
+@login_required
+@limiter.limit("20 per minute")
+def unsubscribe():
+    """Remove a Web Push subscription.
+
+    Body (JSON):
+      { "endpoint": "https://..." }
+
+    Only deletes subscriptions owned by the current user. Attempting
+    to unsubscribe another user's endpoint returns success silently
+    (no information disclosure about whether the endpoint exists).
+    """
+    data = request.get_json(silent=True) or {}
+    endpoint = (data.get("endpoint") or "").strip()
+
+    if not endpoint:
+        return _error(400, "endpoint is required.")
+
+    deleted = (
+        PushSubscription.query
+        .filter_by(endpoint=endpoint, user_id=current_user.id)
+        .delete(synchronize_session=False)
+    )
+    db.session.commit()
+    return jsonify({"status": "unsubscribed", "deleted": deleted}), 200
 
 # ── Mark all read ─────────────────────────────────────────
 @bp.post("/read-all")

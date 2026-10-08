@@ -44,6 +44,38 @@
   {% endif %}
 </ul>
 
+<section
+  id="push-card"
+  class="card"
+  style="margin-top: var(--sp-4); display: none;"
+  data-vapid-endpoint="{{ url_for('notifications.vapid_public_key') }}"
+  data-subscribe-endpoint="{{ url_for('notifications.subscribe') }}"
+  data-unsubscribe-endpoint="{{ url_for('notifications.unsubscribe') }}">
+  <div style="display:flex; align-items:flex-start; gap: var(--sp-3);">
+    <span class="profile-list__icon" style="flex:0 0 auto; background: var(--color-accent-soft); color: var(--color-primary);">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+      </svg>
+    </span>
+    <div class="grow">
+      <h2 id="push-card-title" style="font-size: var(--fs-md); font-weight: 600; margin: 0 0 4px;">
+        Enable notifications
+      </h2>
+      <p id="push-card-body" class="muted" style="margin: 0 0 var(--sp-3); font-size: var(--fs-sm);">
+        Get alerts about safety reports on your campus, even when Campus OS is closed.
+      </p>
+      <button
+        type="button"
+        id="push-card-button"
+        class="btn btn--primary btn--sm">
+        Enable notifications
+      </button>
+      <p id="push-card-status" class="muted" style="margin: var(--sp-2) 0 0; font-size: var(--fs-xs); display:none;"></p>
+    </div>
+  </div>
+</section>
+
 <section style="margin-top: var(--sp-4);">
   <form method="post" action="{{ url_for('auth.logout') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

@@ -399,4 +399,186 @@
   if (mode === 'page') {
     wirePage();
   }
+
+  // ---------- Push subscription (profile page only) ----------
+  wirePushCard();
 })();
+
+
+// ═══════════════════════════════════════════════════════
+// Push subscription management.
+// Runs only when the profile page is loaded and the push
+// card element exists.
+// ═══════════════════════════════════════════════════════
+function wirePushCard() {
+  var card = document.getElementById('push-card');
+  if (!card) return;
+
+  var titleEl = document.getElementById('push-card-title');
+  var bodyEl = document.getElementById('push-card-body');
+  var buttonEl = document.getElementById('push-card-button');
+  var statusEl = document.getElementById('push-card-status');
+
+  var vapidEndpoint = card.dataset.vapidEndpoint;
+  var subscribeEndpoint = card.dataset.subscribeEndpoint;
+  var unsubscribeEndpoint = card.dataset.unsubscribeEndpoint;
+
+  // --- Support detection ---
+  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  var standalone = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+
+  var hasPush = 'serviceWorker' in navigator
+    && 'PushManager' in window
+    && 'Notification' in window;
+
+  if (!hasPush) return;
+  // iOS requires the PWA to be installed and opened as standalone.
+  if (isIOS && !standalone) return;
+
+  // Reveal the card; JS decides the exact state.
+  card.style.display = '';
+
+  var swReg = null;
+
+  function showStatus(message, isError) {
+    statusEl.textContent = message;
+    statusEl.style.display = '';
+    statusEl.style.color = isError ? 'var(--color-danger)' : 'var(--color-text-2)';
+  }
+
+  function clearStatus() {
+    statusEl.textContent = '';
+    statusEl.style.display = 'none';
+  }
+
+  function setSubscribed() {
+    titleEl.textContent = 'Notifications are on';
+    bodyEl.textContent = 'You\u2019ll get alerts about safety reports on your campus.';
+    buttonEl.textContent = 'Disable notifications';
+    buttonEl.classList.remove('btn--primary');
+    buttonEl.classList.add('btn--ghost');
+    buttonEl.disabled = false;
+  }
+
+  function setUnsubscribed() {
+    titleEl.textContent = 'Enable notifications';
+    bodyEl.textContent = 'Get alerts about safety reports on your campus, even when Campus OS is closed.';
+    buttonEl.textContent = 'Enable notifications';
+    buttonEl.classList.remove('btn--ghost');
+    buttonEl.classList.add('btn--primary');
+    buttonEl.disabled = false;
+  }
+
+  function urlBase64ToUint8Array(base64String) {
+    var padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    var rawData = atob(base64);
+    var outputArray = new Uint8Array(rawData.length);
+    for (var i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  }
+
+  function postJSON(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken
+      },
+      body: JSON.stringify(body)
+    }).then(function (res) {
+      if (!res.ok) throw new Error(url + ' -> ' + res.status);
+      return res.json().catch(function () { return null; });
+    });
+  }
+
+  function initialise(reg) {
+    swReg = reg;
+    return reg.pushManager.getSubscription().then(function (existing) {
+      if (existing) setSubscribed(); else setUnsubscribed();
+    }).catch(function () {
+      setUnsubscribed();
+    });
+  }
+
+  function subscribe() {
+    buttonEl.disabled = true;
+    clearStatus();
+
+    Notification.requestPermission().then(function (permission) {
+      if (permission !== 'granted') {
+        showStatus('Permission was not granted. You can enable it in your browser settings.', true);
+        buttonEl.disabled = false;
+        return;
+      }
+
+      return fetch(vapidEndpoint, { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data || !data.key) throw new Error('VAPID key unavailable');
+          var applicationServerKey = urlBase64ToUint8Array(data.key);
+          return swReg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: applicationServerKey
+          });
+        })
+        .then(function (subscription) {
+          var json = subscription.toJSON();
+          return postJSON(subscribeEndpoint, {
+            endpoint: json.endpoint,
+            keys: {
+              p256dh: json.keys.p256dh,
+              auth: json.keys.auth
+            }
+          });
+        })
+        .then(function () {
+          setSubscribed();
+          showStatus('You\u2019re subscribed on this device.', false);
+        })
+        .catch(function (err) {
+          console.warn('[push] subscribe failed', err);
+          showStatus('Couldn\u2019t enable notifications. Try again in a moment.', true);
+          buttonEl.disabled = false;
+        });
+    });
+  }
+
+  function unsubscribe() {
+    buttonEl.disabled = true;
+    clearStatus();
+
+    swReg.pushManager.getSubscription().then(function (existing) {
+      if (!existing) {
+        setUnsubscribed();
+        buttonEl.disabled = false;
+        return;
+      }
+      var endpoint = existing.endpoint;
+      return existing.unsubscribe().then(function () {
+        return postJSON(unsubscribeEndpoint, { endpoint: endpoint });
+      }).then(function () {
+        setUnsubscribed();
+        showStatus('Notifications turned off on this device.', false);
+      });
+    }).catch(function (err) {
+      console.warn('[push] unsubscribe failed', err);
+      showStatus('Couldn\u2019t turn off notifications. Try again.', true);
+      buttonEl.disabled = false;
+    });
+  }
+
+  buttonEl.addEventListener('click', function () {
+    if (buttonEl.textContent.indexOf('Disable') === 0) unsubscribe();
+    else subscribe();
+  });
+
+  navigator.serviceWorker.ready.then(initialise).catch(function (err) {
+    console.warn('[push] service worker not ready', err);
+    showStatus('Notifications are not available right now.', true);
+  });
+}
