@@ -15,6 +15,10 @@
     if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     if (backdrop) backdrop.hidden = !open;
     if (sidebar) sidebar.setAttribute('aria-hidden', open ? 'false' : 'true');
+    // Phase 2.1: keep aria-hidden / inert in sync with the drawer state.
+    // syncSidebarA11y is defined further down in this IIFE and is hoisted,
+    // so it is safe to reference here regardless of declaration order.
+    if (typeof syncSidebarA11y === 'function') syncSidebarA11y();
   }
 
   if (toggle) {
@@ -97,4 +101,47 @@
       if (!window.confirm(msg)) ev.preventDefault();
     });
   });
+
+  // ── Phase 2.1: mobile sidebar a11y state sync ───────
+  // Step 1 made the sidebar start aria-hidden="true" so a closed
+  // mobile drawer isn't exposed to assistive tech on first paint.
+  // That default is wrong on desktop. This block:
+  //   1. Corrects aria-hidden/inert on load and on viewport change.
+  //   2. Is called by setSidebarOpen() (see above) so toggles stay in sync.
+  //   3. Feature-detects `inert` before assigning it.
+
+  var sidebarEl = document.querySelector('[data-admin-sidebar]');
+  var mobileMq = window.matchMedia('(max-width: 1023px)');
+  var supportsInert = ('inert' in HTMLElement.prototype);
+
+  function syncSidebarA11y() {
+    if (!sidebarEl) return;
+    var isMobile = mobileMq.matches;
+    var isOpen = shell && shell.getAttribute('data-admin-shell') === 'open';
+
+    if (!isMobile) {
+      // Desktop: sidebar is always visible and interactive.
+      sidebarEl.setAttribute('aria-hidden', 'false');
+      if (supportsInert) sidebarEl.inert = false;
+      return;
+    }
+
+    // Mobile: reflect the drawer's open/closed state.
+    if (isOpen) {
+      sidebarEl.setAttribute('aria-hidden', 'false');
+      if (supportsInert) sidebarEl.inert = false;
+    } else {
+      sidebarEl.setAttribute('aria-hidden', 'true');
+      if (supportsInert) sidebarEl.inert = true;
+    }
+  }
+
+  // Initial correction and viewport-change correction.
+  syncSidebarA11y();
+  if (typeof mobileMq.addEventListener === 'function') {
+    mobileMq.addEventListener('change', syncSidebarA11y);
+  } else if (typeof mobileMq.addListener === 'function') {
+    // Safari < 14 fallback.
+    mobileMq.addListener(syncSidebarA11y);
+  }
 })();

@@ -1,0 +1,114 @@
+{% extends "layouts/admin.html" %}
+{% block title %}Users{% endblock %}
+{% block page_title %}Users{% endblock %}
+
+{% block content %}
+
+<form method="get" action="{{ url_for('admin.users_list') }}" class="admin-filters">
+  <div class="field">
+    <label for="q">Search</label>
+    <input id="q" name="q" type="search" value="{{ q }}" placeholder="Email, name or phone">
+  </div>
+  <div class="field">
+    <label for="role">Role</label>
+    <select id="role" name="role">
+      <option value="" {{ 'selected' if not role_filter }}>All roles</option>
+      <option value="student"      {{ 'selected' if role_filter == 'student' }}>Student</option>
+      <option value="moderator"    {{ 'selected' if role_filter == 'moderator' }}>Moderator</option>
+      <option value="campus_admin" {{ 'selected' if role_filter == 'campus_admin' }}>Campus admin</option>
+      <option value="platform_admin" {{ 'selected' if role_filter == 'platform_admin' }}>Platform admin</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="status">Status</label>
+    <select id="status" name="status">
+      <option value="" {{ 'selected' if not status_filter }}>All</option>
+      <option value="active"    {{ 'selected' if status_filter == 'active' }}>Active</option>
+      <option value="suspended" {{ 'selected' if status_filter == 'suspended' }}>Suspended</option>
+      <option value="blocked"   {{ 'selected' if status_filter == 'blocked' }}>Blocked</option>
+    </select>
+  </div>
+  <button type="submit" class="admin-btn admin-btn--primary">Apply</button>
+  <a href="{{ url_for('admin.users_list') }}" class="admin-btn admin-btn--ghost">Clear</a>
+</form>
+
+<section class="admin-panel">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">
+      {{ pagination.total }} user{{ '' if pagination.total == 1 else 's' }}
+    </h2>
+  </div>
+
+  {% if not users %}
+    <div class="admin-empty">
+      <div class="admin-empty__title">No users match these filters</div>
+      <div class="admin-empty__body">Try clearing the search or filters.</div>
+    </div>
+  {% else %}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Joined</th>
+          <th>Last login</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+          <tr>
+            <td>{{ u.display_name }}</td>
+            <td>{{ u.email }}</td>
+            <td>{{ u.role }}</td>
+            <td>
+              {% set s = u.status %}
+              <span class="admin-pill admin-pill--{{ 'green' if s == 'active' else 'amber' if s == 'suspended' else 'red' }}">
+                {{ s }}
+              </span>
+            </td>
+            <td>{{ u.created_at.strftime('%Y-%m-%d') }}</td>
+            <td>
+              {% if u.last_login_at %}
+                {{ u.last_login_at.strftime('%Y-%m-%d %H:%M') }}
+              {% else %}
+                <span class="muted">Never</span>
+              {% endif %}
+            </td>
+            <td style="text-align: right;">
+              <a class="admin-btn admin-btn--sm admin-btn--ghost"
+                 href="{{ url_for('admin.user_detail', user_id=u.id) }}">
+                View
+              </a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="admin-pagination">
+      <span>
+        Page {{ pagination.page }} of {{ pagination.pages }} ·
+        {{ pagination.total }} total
+      </span>
+      <div class="admin-pagination__buttons">
+        {% if pagination.has_prev %}
+          <a class="admin-btn admin-btn--sm admin-btn--ghost"
+             href="{{ url_for('admin.users_list', q=q, role=role_filter, status=status_filter, page=pagination.prev_num) }}">
+            ← Previous
+          </a>
+        {% endif %}
+        {% if pagination.has_next %}
+          <a class="admin-btn admin-btn--sm admin-btn--ghost"
+             href="{{ url_for('admin.users_list', q=q, role=role_filter, status=status_filter, page=pagination.next_num) }}">
+            Next →
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</section>
+
+{% endblock %}

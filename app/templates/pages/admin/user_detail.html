@@ -1,0 +1,81 @@
+{% extends "layouts/admin.html" %}
+{% block title %}{{ u.display_name }}{% endblock %}
+{% block page_title %}User: {{ u.display_name }}{% endblock %}
+
+{% block content %}
+
+<p style="margin-bottom: var(--sp-4);">
+  <a href="{{ url_for('admin.users_list') }}" class="admin-btn admin-btn--sm admin-btn--ghost">← Back to users</a>
+</p>
+
+<section class="admin-panel">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">Account</h2>
+    <span class="admin-pill admin-pill--{{ 'green' if u.status == 'active' else 'amber' if u.status == 'suspended' else 'red' }}">
+      {{ u.status }}
+    </span>
+  </div>
+  <div class="admin-panel__body">
+    <dl class="admin-detail">
+      <dt>Display name</dt><dd>{{ u.display_name }}</dd>
+      <dt>Email</dt><dd>{{ u.email }}</dd>
+      <dt>Phone</dt><dd>{{ u.phone or '—' }}</dd>
+      <dt>Role</dt><dd>{{ u.role }}</dd>
+      <dt>Created</dt><dd>{{ u.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+      <dt>Last login</dt>
+      <dd>
+        {% if u.last_login_at %}
+          {{ u.last_login_at.strftime('%Y-%m-%d %H:%M') }}
+        {% else %}
+          Never
+        {% endif %}
+      </dd>
+      <dt>Email verified</dt>
+      <dd>{{ u.email_verified_at.strftime('%Y-%m-%d %H:%M') if u.email_verified_at else 'No' }}</dd>
+    </dl>
+  </div>
+</section>
+
+<section class="admin-panel" style="margin-top: var(--sp-4);">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">Activity</h2>
+  </div>
+  <div class="admin-panel__body">
+    <dl class="admin-detail">
+      <dt>Reports authored</dt><dd>{{ report_count }}</dd>
+      <dt>Notifications received</dt><dd>{{ notif_count }}</dd>
+      <dt>Push subscriptions</dt><dd>{{ push_sub_count }}</dd>
+    </dl>
+  </div>
+</section>
+
+<section class="admin-panel" style="margin-top: var(--sp-4);">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">Actions</h2>
+  </div>
+  <div class="admin-panel__body">
+    <div class="admin-actions">
+      {% if u.id != current_user.id %}
+        {% if u.status == 'active' %}
+          <form method="post" action="{{ url_for('admin.suspend_user', user_id=u.id) }}"
+                data-confirm="Suspend this account? The user will be signed out and unable to log in.">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="admin-btn admin-btn--danger">Suspend account</button>
+          </form>
+        {% elif u.status == 'suspended' %}
+          <form method="post" action="{{ url_for('admin.restore_user', user_id=u.id) }}"
+                data-confirm="Restore this account?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="admin-btn admin-btn--primary">Restore account</button>
+          </form>
+        {% endif %}
+      {% else %}
+        <p class="muted" style="margin: 0;">
+          These are your own credentials. You can't suspend or restore your own account from here.
+        </p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+{% endblock %}

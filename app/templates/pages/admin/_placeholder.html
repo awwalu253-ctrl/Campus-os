@@ -1,16 +1,91 @@
+{# app/templates/pages/admin/_placeholder.html #}
+{#
+  Section-aware placeholder page.
+
+  Context (all optional — the template degrades gracefully):
+    page_title     str   – section name, e.g. "Campus Locations"
+    section_icon   str   – one of: users, universities, locations, pulse,
+                            suggestions, notifications, analytics, audit, health.
+                            Falls back to a generic icon when absent/unknown.
+    teaser         str   – one short line describing the section's future scope.
+    breadcrumb_items  list[dict]  – optional; picked up by admin_shell.html.
+
+  Route helper `_placeholder()` in app/admin/routes.py currently passes only
+  page_title. Step 5 will extend it to pass section_icon and teaser per route.
+#}
 {% extends "layouts/admin.html" %}
+
+{% macro placeholder_icon(name) %}
+  {%- if name == 'users' -%}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+  {%- elif name == 'universities' -%}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 10v10h14V10"/><path d="M12 3v18"/></svg>
+  {%- elif name == 'locations' -%}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg>
+  {%- elif name == 'pulse' -%}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg>
+  {%- elif name == 'suggestions' -%}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+  {%- elif name == 'notifications' -%}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+  {%- elif name == 'analytics' -%}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
+  {%- elif name == 'audit' -%}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v16H4z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg>
+  {%- elif name == 'health' -%}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>
+  {%- else -%}
+    {# Generic "not yet built" glyph: dashed tile with a dot. #}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="3.5" y="3.5" width="17" height="17" rx="3" stroke-dasharray="3 3"/>
+      <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>
+    </svg>
+  {%- endif -%}
+{% endmacro %}
+
 {% block title %}{{ page_title }}{% endblock %}
 {% block page_title %}{{ page_title }}{% endblock %}
 
 {% block content %}
+
 <section class="admin-panel">
-  <div class="admin-panel__head">
-    <h2 class="admin-panel__title">{{ page_title }}</h2>
-  </div>
   <div class="admin-panel__body">
-    <p class="muted" style="margin: 0;">
-      This page is scheduled for a later phase of the admin build.
-    </p>
+    <div class="admin-placeholder">
+
+      <div class="admin-placeholder__icon" aria-hidden="true">
+        {{ placeholder_icon(section_icon if section_icon is defined else None) }}
+      </div>
+
+      <p class="admin-placeholder__body">
+        This section is scheduled for a later phase of the admin build.
+      </p>
+
+      {% if teaser is defined and teaser %}
+        <p class="admin-placeholder__teaser">{{ teaser }}</p>
+      {% endif %}
+
+      <span class="admin-placeholder__note">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 8v5"/>
+          <path d="M12 16h.01"/>
+        </svg>
+        Planned for a later phase
+      </span>
+
+      <div class="admin-placeholder__actions">
+        <a class="admin-btn admin-btn--ghost"
+           href="{{ url_for('admin.dashboard') }}">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M19 12H5"/>
+            <path d="m12 19-7-7 7-7"/>
+          </svg>
+          Back to Overview
+        </a>
+      </div>
+
+    </div>
   </div>
 </section>
+
 {% endblock %}

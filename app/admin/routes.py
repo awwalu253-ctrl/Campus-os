@@ -7,10 +7,14 @@ every route. Frontend role hints are cosmetic only.
 """
 from datetime import datetime, timedelta, timezone
 
-from flask import Blueprint, current_app, render_template
-from flask_login import login_required
+from flask import (
+    Blueprint, abort, current_app, flash, redirect, render_template,
+    request, url_for,
+)
+from flask_login import current_user, login_required
 from sqlalchemy import func, select
 
+from app.core import audit as audit_log
 from app.core.permissions import requires, Perm
 from app.extensions import db
 from app.models import User, University, Campus
@@ -21,6 +25,8 @@ from app.pulse.models import CampusReport
 
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
+
+USERS_PER_PAGE = 25
 
 
 # ── Helpers ───────────────────────────────────────────────
@@ -238,26 +244,129 @@ def dashboard():
     )
 
 
-# ── Management pages (Phase 3 will replace these stubs) ────
+# ── Users management ──────────────────────────────────────
 @bp.get("/users")
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def users_list():
-    return _placeholder("Users")
+    """Paginated, searchable user list."""
+    q = (request.args.get("q") or "").strip()
+    role_filter = (request.args.get("role") or "").strip()
+    status_filter = (request.args.get("status") or "").strip()
+    page = max(1, int(request.args.get("page") or 1))
+
+    query = User.query.filter(User.deleted_at.is_(None))
+
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            db.or_(
+                User.email.ilike(like),
+                User.display_name.ilike(like),
+                User.phone.ilike(like),
+            )
+        )
+    if role_filter in ("student", "moderator", "campus_admin", "platform_admin"):
+        query = query.filter(User.role == role_filter)
+    if status_filter in ("active", "suspended", "blocked"):
+        query = query.filter(User.status == status_filter)
+
+    pagination = query.order_by(User.created_at.desc()).paginate(
+        page=page, per_page=USERS_PER_PAGE, error_out=False
+    )
+
+    return render_template(
+        "pages/admin/users_list.html",
+        users=pagination.items,
+        pagination=pagination,
+        q=q,
+        role_filter=role_filter,
+        status_filter=status_filter,
+    )
 
 
+@bp.get("/users/<user_id>")
+@login_required
+@requires(Perm.ADMIN_VIEW)
+def user_detail(user_id):
+    """Single user detail view."""
+    u = db.session.get(User, user_id)
+    if not u or u.deleted_at is not None:
+        abort(404)
+
+    push_sub_count = PushSubscription.query.filter_by(user_id=u.id).count()
+    notif_count = Notification.query.filter_by(recipient_id=u.id).count()
+    report_count = CampusReport.query.filter_by(reported_by=u.id).count()
+
+    return render_template(
+        "pages/admin/user_detail.html",
+        u=u,
+        push_sub_count=push_sub_count,
+        notif_count=notif_count,
+        report_count=report_count,
+    )
+
+
+@bp.post("/users/<user_id>/suspend")
+@login_required
+@requires(Perm.ADMIN_MANAGE_USERS)
+def suspend_user(user_id):
+    u = db.session.get(User, user_id)
+    if not u or u.deleted_at is not None:
+        abort(404)
+    if u.id == current_user.id:
+        flash("You can't suspend your own account.", "error")
+        return redirect(url_for("admin.user_detail", user_id=u.id))
+    if u.status == "suspended":
+        flash("Account is already suspended.", "info")
+        return redirect(url_for("admin.user_detail", user_id=u.id))
+
+    before = {"status": u.status}
+    u.status = "suspended"
+    audit_log.log(
+        current_user.id, "user.suspend", "user", u.id,
+        before=before, after={"status": "suspended"},
+    )
+    db.session.commit()
+    flash(f"Suspended {u.email}.", "success")
+    return redirect(url_for("admin.user_detail", user_id=u.id))
+
+
+@bp.post("/users/<user_id>/restore")
+@login_required
+@requires(Perm.ADMIN_MANAGE_USERS)
+def restore_user(user_id):
+    u = db.session.get(User, user_id)
+    if not u or u.deleted_at is not None:
+        abort(404)
+    if u.status == "active":
+        flash("Account is already active.", "info")
+        return redirect(url_for("admin.user_detail", user_id=u.id))
+
+    before = {"status": u.status}
+    u.status = "active"
+    audit_log.log(
+        current_user.id, "user.restore", "user", u.id,
+        before=before, after={"status": "active"},
+    )
+    db.session.commit()
+    flash(f"Restored {u.email}.", "success")
+    return redirect(url_for("admin.user_detail", user_id=u.id))
+
+
+# ── Placeholder pages (Phase 3+ will replace these stubs) ──
 @bp.get("/universities")
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def universities_list():
-    return _placeholder("Universities")
+    return _placeholder("Universities & Campuses")
 
 
 @bp.get("/locations")
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def locations_list():
-    return _placeholder("Locations")
+    return _placeholder("Campus Locations")
 
 
 @bp.get("/pulse")
@@ -271,14 +380,14 @@ def pulse_list():
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def suggestions_list():
-    return _placeholder("Location suggestions")
+    return _placeholder("Location Suggestions")
 
 
 @bp.get("/notifications")
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def notifications_overview():
-    return _placeholder("Notifications")
+    return _placeholder("Notifications & Push")
 
 
 @bp.get("/analytics")
@@ -292,11 +401,11 @@ def analytics():
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def audit_list():
-    return _placeholder("Audit logs")
+    return _placeholder("Audit Logs")
 
 
 @bp.get("/health")
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def health():
-    return _placeholder("System health")
+    return _placeholder("System Health")
