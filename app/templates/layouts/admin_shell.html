@@ -20,7 +20,7 @@
 
 <div class="admin-shell" data-admin-shell>
 
-  <aside class="admin-sidebar" aria-label="Admin navigation">
+  <aside class="admin-sidebar" id="admin-sidebar" aria-label="Admin navigation" aria-hidden="false">
     <div class="admin-sidebar__brand">
       <span class="admin-sidebar__mark" aria-hidden="true"></span>
       <span class="admin-sidebar__name">Campus OS</span>
@@ -109,22 +109,28 @@
         <div class="admin-menu" data-admin-menu>
           <button type="button"
                   class="admin-menu__button"
-                  aria-haspopup="menu"
+                  aria-haspopup="true"
                   aria-expanded="false"
+                  aria-controls="admin-menu-panel"
                   data-admin-menu-trigger>
             <span class="admin-menu__avatar">{{ current_user.display_name[:1]|upper }}</span>
             <span class="admin-menu__name">{{ current_user.display_name }}</span>
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
           </button>
-          <div class="admin-menu__panel" role="menu" hidden data-admin-menu-panel>
+          <div class="admin-menu__panel"
+               id="admin-menu-panel"
+               role="region"
+               aria-label="Account"
+               hidden
+               data-admin-menu-panel>
             <div class="admin-menu__head">
               <div class="admin-menu__head-name">{{ current_user.display_name }}</div>
               <div class="admin-menu__head-email">{{ current_user.email }}</div>
               <div class="admin-menu__head-role">Role: {{ current_user.role }}</div>
             </div>
-            <a role="menuitem" class="admin-menu__item" href="{{ url_for('users.profile') }}">My profile</a>
-            <a role="menuitem" class="admin-menu__item" href="{{ url_for('web.home') }}">Student view</a>
-            <form method="post" action="{{ url_for('auth.logout') }}" role="menuitem">
+            <a class="admin-menu__item" href="{{ url_for('users.profile') }}">My profile</a>
+            <a class="admin-menu__item" href="{{ url_for('web.home') }}">Student view</a>
+            <form method="post" action="{{ url_for('auth.logout') }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="admin-menu__item admin-menu__item--danger">Sign out</button>
             </form>

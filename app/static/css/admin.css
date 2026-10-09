@@ -381,3 +381,33 @@
   .admin-topbar { padding: var(--sp-3) var(--sp-4); }
   .admin-main { padding: var(--sp-4); }
 }
+
+/* ── Section titles in dashboard ────────────────────── */
+.admin-section-title {
+  font-size: var(--fs-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-2);
+  margin: var(--sp-5) 0 var(--sp-3);
+  font-weight: 700;
+}
+.admin-section-title:first-child { margin-top: 0; }
+
+/* ── Moderation queue list ─────────────────────────── */
+.admin-queue {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.admin-queue li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.admin-queue li:last-child { border-bottom: 0; padding-bottom: 0; }
+
+/* ── Error value styling ───────────────────────────── */
+.admin-stat__value--error { color: var(--color-text-3); }

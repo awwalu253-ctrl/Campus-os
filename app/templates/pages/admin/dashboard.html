@@ -4,42 +4,224 @@
 
 {% block content %}
 
+{# ── Users ──────────────────────────────────────────── #}
+<h2 class="admin-section-title">Users</h2>
 <section class="admin-stat-grid">
   <div class="admin-stat">
-    <div class="admin-stat__label">Registered users</div>
-    <div class="admin-stat__value">{{ user_count }}</div>
+    <div class="admin-stat__label">Registered</div>
+    {% if user_total_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% else %}
+      <div class="admin-stat__value">{{ user_total }}</div>
+    {% endif %}
   </div>
   <div class="admin-stat">
-    <div class="admin-stat__label">Universities</div>
-    <div class="admin-stat__value">{{ uni_count }}</div>
+    <div class="admin-stat__label">Active (7d)</div>
+    {% if user_active_7_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% else %}
+      <div class="admin-stat__value">{{ user_active_7 }}</div>
+      <div class="admin-stat__sub">Logged in within 7 days</div>
+    {% endif %}
   </div>
   <div class="admin-stat">
-    <div class="admin-stat__label">Locations</div>
-    <div class="admin-stat__value">{{ location_count }}</div>
-  </div>
-  <div class="admin-stat">
-    <div class="admin-stat__label">Active reports</div>
-    <div class="admin-stat__value">{{ active_report_count }}</div>
-  </div>
-  <div class="admin-stat">
-    <div class="admin-stat__label">Pending suggestions</div>
-    <div class="admin-stat__value">{{ pending_suggestion_count }}</div>
-  </div>
-  <div class="admin-stat">
-    <div class="admin-stat__label">Flagged reports</div>
-    <div class="admin-stat__value">{{ flagged_report_count }}</div>
+    <div class="admin-stat__label">Active (30d)</div>
+    {% if user_active_30_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% else %}
+      <div class="admin-stat__value">{{ user_active_30 }}</div>
+      <div class="admin-stat__sub">Logged in within 30 days</div>
+    {% endif %}
   </div>
 </section>
 
-<section class="admin-panel" style="margin-top: var(--sp-5);">
+{# ── Universities ───────────────────────────────────── #}
+<h2 class="admin-section-title">Universities &amp; campuses</h2>
+<section class="admin-stat-grid">
+  <div class="admin-stat">
+    <div class="admin-stat__label">Universities</div>
+    <div class="admin-stat__value">{{ uni_count if not uni_err else '—' }}</div>
+  </div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Campuses</div>
+    <div class="admin-stat__value">{{ campus_count if not campus_err else '—' }}</div>
+  </div>
+</section>
+
+{# ── Locations ──────────────────────────────────────── #}
+<h2 class="admin-section-title">Locations</h2>
+<section class="admin-stat-grid">
+  <div class="admin-stat">
+    <div class="admin-stat__label">Total</div>
+    <div class="admin-stat__value">{{ location_total if not location_err else '—' }}</div>
+  </div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Approved</div>
+    <div class="admin-stat__value">{{ location_approved if not location_err else '—' }}</div>
+  </div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Pending</div>
+    <div class="admin-stat__value">{{ location_pending if not location_err else '—' }}</div>
+  </div>
+</section>
+
+{# ── Campus Pulse ───────────────────────────────────── #}
+<h2 class="admin-section-title">Campus Pulse</h2>
+<section class="admin-stat-grid">
+  <div class="admin-stat">
+    <div class="admin-stat__label">Active reports</div>
+    <div class="admin-stat__value">{{ report_active if not report_err else '—' }}</div>
+  </div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Expired</div>
+    <div class="admin-stat__value">{{ report_expired if not report_err else '—' }}</div>
+  </div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Flagged</div>
+    <div class="admin-stat__value">{{ report_flagged if not report_err else '—' }}</div>
+  </div>
+</section>
+
+<section class="admin-panel" style="margin-top: var(--sp-4);">
   <div class="admin-panel__head">
-    <h2 class="admin-panel__title">Moderation queue</h2>
+    <h3 class="admin-panel__title">Top categories (all time)</h3>
   </div>
   <div class="admin-panel__body">
-    <p class="muted" style="margin: 0;">
-      This overview will be populated in Phase 2 with real moderation
-      data, recent activity, and links to the management pages.
-    </p>
+    {% if category_err %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">Category data unavailable</div>
+        <div class="admin-empty__body">The query for category breakdown failed.</div>
+      </div>
+    {% elif not category_breakdown %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">No reports yet</div>
+        <div class="admin-empty__body">Once students post reports, top categories will appear here.</div>
+      </div>
+    {% else %}
+      <table class="admin-table">
+        <thead>
+          <tr><th>Category</th><th style="text-align: right;">Reports</th></tr>
+        </thead>
+        <tbody>
+          {% for row in category_breakdown %}
+            <tr>
+              <td>{{ row.category.replace('_', ' ')|title }}</td>
+              <td style="text-align: right;">{{ row.count }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+</section>
+
+{# ── Suggestions ────────────────────────────────────── #}
+<h2 class="admin-section-title">Suggestions</h2>
+<section class="admin-stat-grid">
+  <div class="admin-stat">
+    <div class="admin-stat__label">Pending review</div>
+    <div class="admin-stat__value">{{ suggestion_pending if not suggestion_err else '—' }}</div>
+  </div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Approved (30d)</div>
+    <div class="admin-stat__value">{{ suggestion_approved_30 if not suggestion_err else '—' }}</div>
+  </div>
+</section>
+
+{# ── Notifications ──────────────────────────────────── #}
+<h2 class="admin-section-title">Notifications &amp; push</h2>
+<section class="admin-stat-grid">
+  <div class="admin-stat">
+    <div class="admin-stat__label">Notifications</div>
+    <div class="admin-stat__value">{{ notification_total if not notification_err else '—' }}</div>
+  </div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Unread</div>
+    <div class="admin-stat__value">{{ notification_unread if not notification_err else '—' }}</div>
+  </div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Push subscriptions</div>
+    <div class="admin-stat__value">{{ push_sub_count if not notification_err else '—' }}</div>
+  </div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Stale subscriptions</div>
+    <div class="admin-stat__value">{{ push_stale_count if not notification_err else '—' }}</div>
+    <div class="admin-stat__sub">Created &gt;30d ago, never succeeded</div>
+  </div>
+</section>
+
+{# ── Recent audit activity ──────────────────────────── #}
+<section class="admin-panel" style="margin-top: var(--sp-5);">
+  <div class="admin-panel__head">
+    <h3 class="admin-panel__title">Recent activity</h3>
+    <a class="admin-btn admin-btn--sm admin-btn--ghost" href="{{ url_for('admin.audit_list') }}">View audit log</a>
+  </div>
+  <div class="admin-panel__body">
+    {% if audit_err %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">Activity unavailable</div>
+        <div class="admin-empty__body">The audit log query failed.</div>
+      </div>
+    {% elif not recent_audit %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">No activity recorded yet</div>
+        <div class="admin-empty__body">
+          Audit logging is wired in Phase 5. Until then this list is empty by design,
+          not because the query failed.
+        </div>
+      </div>
+    {% else %}
+      <table class="admin-table">
+        <thead>
+          <tr><th>When</th><th>Action</th><th>Entity</th><th>Actor</th></tr>
+        </thead>
+        <tbody>
+          {% for a in recent_audit %}
+            <tr>
+              <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+              <td>{{ a.action }}</td>
+              <td>{{ a.entity_type }}{% if a.entity_id %} · {{ a.entity_id[:8] }}{% endif %}</td>
+              <td>{{ a.actor_id[:8] if a.actor_id else '—' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+</section>
+
+{# ── Moderation queue ───────────────────────────────── #}
+<section class="admin-panel" style="margin-top: var(--sp-4);">
+  <div class="admin-panel__head">
+    <h3 class="admin-panel__title">Moderation queue</h3>
+  </div>
+  <div class="admin-panel__body">
+    <ul class="admin-queue">
+      <li>
+        <span>Pending location suggestions</span>
+        <a class="admin-btn admin-btn--sm admin-btn--ghost"
+           href="{{ url_for('admin.suggestions_list') }}">
+          Review ({{ suggestion_pending if not suggestion_err else '—' }})
+        </a>
+      </li>
+      <li>
+        <span>Flagged reports</span>
+        <a class="admin-btn admin-btn--sm admin-btn--ghost"
+           href="{{ url_for('admin.pulse_list') }}">
+          Review ({{ report_flagged if not report_err else '—' }})
+        </a>
+      </li>
+      <li>
+        <span>Users</span>
+        <a class="admin-btn admin-btn--sm admin-btn--ghost"
+           href="{{ url_for('admin.users_list') }}">
+          Manage ({{ user_total if not user_total_err else '—' }})
+        </a>
+      </li>
+    </ul>
   </div>
 </section>
 
