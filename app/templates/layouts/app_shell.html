@@ -44,6 +44,16 @@
          class="sidebar__item {{ 'is-active' if request.endpoint and request.endpoint.startswith('users.') }}">
         {{ nav_icon('profile') }}<span>Profile</span>
       </a>
+      {% if current_user.is_authenticated and current_user.role in ('platform_admin', 'campus_admin', 'moderator') %}
+        <a href="{{ url_for('admin.dashboard') }}"
+           class="sidebar__item" style="margin-top: var(--sp-3); border-top: 1px solid var(--color-border); padding-top: var(--sp-3);">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3 4 7v6c0 4 3.5 7.5 8 8 4.5-.5 8-4 8-8V7l-8-4Z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+          <span>Admin</span>
+        </a>
+      {% endif %}
     </nav>
   </aside>
 
@@ -55,6 +65,15 @@
       <a class="icon-btn" href="{{ url_for('maps.index') }}" aria-label="Open map">
         {{ nav_icon('map') }}
       </a>
+
+      {% if current_user.is_authenticated and current_user.role in ('platform_admin', 'campus_admin', 'moderator') %}
+        <a class="icon-btn" href="{{ url_for('admin.dashboard') }}" aria-label="Admin dashboard" title="Admin dashboard">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3 4 7v6c0 4 3.5 7.5 8 8 4.5-.5 8-4 8-8V7l-8-4Z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+        </a>
+      {% endif %}
 
       <div class="notif-bell">
         <a class="icon-btn"

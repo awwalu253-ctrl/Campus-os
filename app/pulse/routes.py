@@ -8,10 +8,27 @@ from app.pulse.models import CampusReport
 bp = Blueprint("pulse", __name__, url_prefix="/pulse")
 
 
+STAFF_ROLES = ("platform_admin", "campus_admin", "moderator")
+
+
 def _current_campus_id() -> str:
-    if not current_user.profile or not current_user.profile.campus_id:
-        return None
-    return current_user.profile.campus_id
+    """Return the current user's campus.
+
+    Students use their profile's campus. Staff roles (admin/moderator)
+    have no StudentProfile, so they fall back to the first campus in the
+    system — enough to view and moderate Pulse without a full student
+    onboarding.
+    """
+    if current_user.profile and current_user.profile.campus_id:
+        return current_user.profile.campus_id
+
+    if current_user.role in STAFF_ROLES:
+        from app.models import Campus
+        first = Campus.query.order_by(Campus.name).first()
+        if first:
+            return first.id
+
+    return None
 
 
 @bp.get("/")

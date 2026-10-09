@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#17233F">
+  <title>{% block title %}Admin{% endblock %} · {{ BRAND.name }} Admin</title>
+  <meta name="description" content="Campus OS administration">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body class="admin-body">
+
+<div class="admin-shell" data-admin-shell>
+
+  <aside class="admin-sidebar" aria-label="Admin navigation">
+    <div class="admin-sidebar__brand">
+      <span class="admin-sidebar__mark" aria-hidden="true"></span>
+      <span class="admin-sidebar__name">Campus OS</span>
+      <span class="admin-sidebar__tag">Admin</span>
+    </div>
+
+    <nav class="admin-nav" aria-label="Primary">
+      <a href="{{ url_for('admin.dashboard') }}"
+         class="admin-nav__item {{ 'is-active' if request.endpoint == 'admin.dashboard' }}">
+        <svg class="admin-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 10v10h14V10"/></svg>
+        <span>Overview</span>
+      </a>
+      <a href="{{ url_for('admin.users_list') }}"
+         class="admin-nav__item {{ 'is-active' if request.endpoint and request.endpoint.startswith('admin.users') }}">
+        <svg class="admin-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+        <span>Users</span>
+      </a>
+      <a href="{{ url_for('admin.universities_list') }}"
+         class="admin-nav__item {{ 'is-active' if request.endpoint and request.endpoint.startswith('admin.universities') }}">
+        <svg class="admin-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 10v10h14V10"/><path d="M12 3v18"/></svg>
+        <span>Universities</span>
+      </a>
+      <a href="{{ url_for('admin.locations_list') }}"
+         class="admin-nav__item {{ 'is-active' if request.endpoint and request.endpoint.startswith('admin.locations') }}">
+        <svg class="admin-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg>
+        <span>Locations</span>
+      </a>
+      <a href="{{ url_for('admin.pulse_list') }}"
+         class="admin-nav__item {{ 'is-active' if request.endpoint and request.endpoint.startswith('admin.pulse') }}">
+        <svg class="admin-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg>
+        <span>Campus Pulse</span>
+      </a>
+      <a href="{{ url_for('admin.suggestions_list') }}"
+         class="admin-nav__item {{ 'is-active' if request.endpoint and request.endpoint.startswith('admin.suggestions') }}">
+        <svg class="admin-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+        <span>Suggestions</span>
+      </a>
+      <a href="{{ url_for('admin.notifications_overview') }}"
+         class="admin-nav__item {{ 'is-active' if request.endpoint and request.endpoint.startswith('admin.notifications') }}">
+        <svg class="admin-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        <span>Notifications</span>
+      </a>
+      <a href="{{ url_for('admin.analytics') }}"
+         class="admin-nav__item {{ 'is-active' if request.endpoint == 'admin.analytics' }}">
+        <svg class="admin-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
+        <span>Analytics</span>
+      </a>
+      <a href="{{ url_for('admin.audit_list') }}"
+         class="admin-nav__item {{ 'is-active' if request.endpoint and request.endpoint.startswith('admin.audit') }}">
+        <svg class="admin-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v16H4z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg>
+        <span>Audit logs</span>
+      </a>
+      <a href="{{ url_for('admin.health') }}"
+         class="admin-nav__item {{ 'is-active' if request.endpoint == 'admin.health' }}">
+        <svg class="admin-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>
+        <span>System health</span>
+      </a>
+    </nav>
+
+    <div class="admin-sidebar__footer">
+      <a href="{{ url_for('web.home') }}" class="admin-nav__item">
+        <svg class="admin-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l-6-6 6-6"/><path d="M3 12h18"/></svg>
+        <span>Back to app</span>
+      </a>
+    </div>
+  </aside>
+
+  <div class="admin-main-wrap">
+
+    <header class="admin-topbar">
+      <button type="button"
+              class="admin-topbar__toggle"
+              data-admin-toggle
+              aria-label="Toggle navigation"
+              aria-expanded="false"
+              aria-controls="admin-sidebar">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
+      </button>
+
+      <div class="admin-topbar__title-block">
+        <h1 class="admin-topbar__title">{% block page_title %}Admin{% endblock %}</h1>
+        {% block breadcrumbs %}{% endblock %}
+      </div>
+
+      <div class="admin-topbar__actions">
+        <div class="admin-menu" data-admin-menu>
+          <button type="button"
+                  class="admin-menu__button"
+                  aria-haspopup="menu"
+                  aria-expanded="false"
+                  data-admin-menu-trigger>
+            <span class="admin-menu__avatar">{{ current_user.display_name[:1]|upper }}</span>
+            <span class="admin-menu__name">{{ current_user.display_name }}</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="admin-menu__panel" role="menu" hidden data-admin-menu-panel>
+            <div class="admin-menu__head">
+              <div class="admin-menu__head-name">{{ current_user.display_name }}</div>
+              <div class="admin-menu__head-email">{{ current_user.email }}</div>
+              <div class="admin-menu__head-role">Role: {{ current_user.role }}</div>
+            </div>
+            <a role="menuitem" class="admin-menu__item" href="{{ url_for('users.profile') }}">My profile</a>
+            <a role="menuitem" class="admin-menu__item" href="{{ url_for('web.home') }}">Student view</a>
+            <form method="post" action="{{ url_for('auth.logout') }}" role="menuitem">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="admin-menu__item admin-menu__item--danger">Sign out</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="admin-main">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="admin-flash-stack">
+            {% for cat, msg in messages %}
+              <div class="admin-flash admin-flash--{{ cat }}" role="status">{{ msg }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="admin-footer">
+      <span>Campus OS · Admin</span>
+      <span>v1</span>
+    </footer>
+  </div>
+
+  <div class="admin-sidebar-backdrop" data-admin-backdrop hidden></div>
+</div>
+
+<script src="{{ url_for('static', filename='js/admin.js') }}" defer></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

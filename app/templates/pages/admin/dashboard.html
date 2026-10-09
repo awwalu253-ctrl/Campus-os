@@ -1,41 +1,46 @@
 {% extends "layouts/admin.html" %}
-{% block title %}Admin{% endblock %}
+{% block title %}Overview{% endblock %}
+{% block page_title %}Overview{% endblock %}
+
 {% block content %}
-<h1>Admin dashboard</h1>
 
-<section class="quick-grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));">
-  <div class="card">
-    <div class="muted">Users</div>
-    <div class="stat">{{ user_count }}</div>
+<section class="admin-stat-grid">
+  <div class="admin-stat">
+    <div class="admin-stat__label">Registered users</div>
+    <div class="admin-stat__value">{{ user_count }}</div>
   </div>
-  <div class="card">
-    <div class="muted">Universities</div>
-    <div class="stat">{{ uni_count }}</div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Universities</div>
+    <div class="admin-stat__value">{{ uni_count }}</div>
   </div>
-  <div class="card">
-    <div class="muted">Locations</div>
-    <div class="stat">{{ location_count }}</div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Locations</div>
+    <div class="admin-stat__value">{{ location_count }}</div>
   </div>
-  <div class="card">
-    <div class="muted">Active reports</div>
-    <div class="stat">{{ active_report_count }}</div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Active reports</div>
+    <div class="admin-stat__value">{{ active_report_count }}</div>
   </div>
-  <div class="card">
-    <div class="muted">Pending suggestions</div>
-    <div class="stat">{{ pending_suggestion_count }}</div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Pending suggestions</div>
+    <div class="admin-stat__value">{{ pending_suggestion_count }}</div>
   </div>
-  <div class="card">
-    <div class="muted">Flagged reports</div>
-    <div class="stat">{{ flagged_report_count }}</div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Flagged reports</div>
+    <div class="admin-stat__value">{{ flagged_report_count }}</div>
   </div>
 </section>
 
-<section style="margin-top: var(--sp-5);">
-  <h2>Quick actions</h2>
-  <div class="quick-actions">
-    <a class="btn btn--ghost" href="{{ url_for('maps.admin_suggestions') }}">Review suggestions</a>
-    <a class="btn btn--ghost" href="{{ url_for('pulse.index') }}">View Pulse</a>
-    <a class="btn btn--ghost" href="{{ url_for('maps.index') }}">View map</a>
+<section class="admin-panel" style="margin-top: var(--sp-5);">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">Moderation queue</h2>
+  </div>
+  <div class="admin-panel__body">
+    <p class="muted" style="margin: 0;">
+      This overview will be populated in Phase 2 with real moderation
+      data, recent activity, and links to the management pages.
+    </p>
   </div>
 </section>
+
 {% endblock %}
