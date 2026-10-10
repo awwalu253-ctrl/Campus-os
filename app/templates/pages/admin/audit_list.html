@@ -89,44 +89,46 @@
       </div>
     {% endif %}
   {% else %}
-    <table class="admin-table">
-      <thead>
-        <tr>
-          <th>When</th>
-          <th>Action</th>
-          <th>Entity</th>
-          <th>Actor</th>
-          <th>Change</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in rows %}
-          {% set a = row.entry %}
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
           <tr>
-            <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-            <td>{{ row.action_label }}</td>
-            <td>
-              {{ a.entity_type }}{% if a.entity_id %} · {{ a.entity_id[:8] }}{% endif %}
-            </td>
-            <td>
-              {% if a.actor_id %}
-                {{ a.actor_id[:8] }}
-              {% else %}
-                <span class="muted">—</span>
-              {% endif %}
-            </td>
-            <td>{{ row.summary }}</td>
-            <td style="text-align: right;">
-              <a class="admin-btn admin-btn--sm admin-btn--ghost"
-                 href="{{ url_for('admin.audit_detail', log_id=a.id) }}">
-                View
-              </a>
-            </td>
+            <th>When</th>
+            <th>Action</th>
+            <th>Entity</th>
+            <th>Actor</th>
+            <th>Change</th>
+            <th></th>
           </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            {% set a = row.entry %}
+            <tr>
+              <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+              <td>{{ row.action_label }}</td>
+              <td>
+                {{ a.entity_type }}{% if a.entity_id %} · {{ a.entity_id[:8] }}{% endif %}
+              </td>
+              <td>
+                {% if a.actor_id %}
+                  {{ a.actor_id[:8] }}
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+              <td>{{ row.summary }}</td>
+              <td style="text-align: right;">
+                <a class="admin-btn admin-btn--sm admin-btn--ghost"
+                   href="{{ url_for('admin.audit_detail', log_id=a.id) }}">
+                  View
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
 
     <div class="admin-pagination">
       <span>

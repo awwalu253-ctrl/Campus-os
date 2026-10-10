@@ -646,3 +646,27 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ═══════════════════════════════════════════════════════
+   Phase 2.2 hotfix — horizontal scroll for wide tables
+   ─────────────────────────────────────────────────────
+   Wraps tables that would otherwise wrap cell content
+   unpredictably on narrow viewports. Scoped to a new
+   wrapper class so the Users table is unaffected until
+   we choose to adopt the same wrapper there.
+   ═══════════════════════════════════════════════════════ */
+
+.admin-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 767px) {
+  .admin-table-wrap .admin-table {
+    min-width: 640px;
+  }
+  .admin-table-wrap .admin-table th,
+  .admin-table-wrap .admin-table td {
+    white-space: nowrap;
+  }
+}
