@@ -12,7 +12,7 @@ from flask import (
     request, url_for,
 )
 from flask_login import current_user, login_required
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
 from app.core import audit as audit_log
 from app.core.permissions import requires, Perm
@@ -298,6 +298,105 @@ def _bulk_resolve_pulse(rows) -> dict:
         }
 
     return {"users": users, "campuses": campuses, "locations": locations}
+
+# ── System health helpers ─────────────────────────────────
+# Every helper returns {"status": <label>, "message": <safe text>} and
+# never raises. The health page renders whatever comes back; a failed
+# check is shown as a red/amber/gray pill, not as a 500 response. No
+# helper ever puts exception text, credentials, connection strings, or
+# config values into the response.
+
+def _check_db() -> dict:
+    """Database liveness via a trivial SELECT.
+
+    Uses the same probe as /healthz/deps: SELECT 1 through the SQLAlchemy
+    session. Any exception is swallowed and reported as 'error' with a
+    generic message — the exception text may contain the connection
+    string or credentials, so it must not reach the page.
+    """
+    try:
+        db.session.execute(text("SELECT 1"))
+        return {"status": "ok", "message": "Connected."}
+    except Exception:
+        current_app.logger.exception("health: database check failed")
+        return {"status": "error", "message": "Database query failed."}
+
+
+def _check_redis() -> dict:
+    """Redis reachability via a PING.
+
+    Independent of Celery: this checks the Redis instance the app uses
+    for rate limiting and general cache purposes. Celery may be
+    configured against a different broker and is checked separately.
+    """
+    redis_url = current_app.config.get("REDIS_URL") or ""
+    if not redis_url:
+        return {"status": "not_configured", "message": "Redis URL is not configured."}
+
+    try:
+        import redis as _redis
+        client = _redis.from_url(redis_url, socket_timeout=2)
+        client.ping()
+        return {"status": "ok", "message": "Connected."}
+    except Exception:
+        current_app.logger.exception("health: redis check failed")
+        return {"status": "error", "message": "Redis is unreachable."}
+
+
+def _check_celery() -> dict:
+    """Celery worker reachability via the broker's inspect ping.
+
+    Deliberately independent of _check_redis: the Celery broker URL is
+    a separate configuration value (CELERY_BROKER_URL) and may point at
+    a different Redis instance or database than REDIS_URL.
+
+    Four distinct states are reported, none of which is fabricated:
+      - unknown      — the broker is 'memory://' (in-process, unreachable
+                       from this process by any external worker), or the
+                       check itself cannot be performed.
+      - broker_error — the broker is configured but unreachable.
+      - no_workers   — the broker responded, but no workers replied.
+      - ok           — one or more workers replied to the ping.
+
+    Uses a bare Celery client built from the broker URL rather than
+    importing tasks.celery_app.celery. The latter would trigger a full
+    create_app() call at import time inside the request thread; the
+    bare client achieves the same inspect broadcast without that cost.
+    """
+    broker_url = current_app.config.get("CELERY_BROKER_URL") or ""
+
+    if not broker_url or broker_url == "memory://":
+        return {
+            "status": "unknown",
+            "message": "Celery broker is in-process; workers are not reachable.",
+            "workers": [],
+        }
+
+    try:
+        from celery import Celery
+        inspector_client = Celery(broker=broker_url)
+        reply = inspector_client.control.inspect(timeout=1.0).ping()
+    except Exception:
+        current_app.logger.exception("health: celery broker check failed")
+        return {
+            "status": "broker_error",
+            "message": "Celery broker is unreachable.",
+            "workers": [],
+        }
+
+    if not reply:
+        return {
+            "status": "no_workers",
+            "message": "No Celery workers responded.",
+            "workers": [],
+        }
+
+    worker_names = sorted(reply.keys())
+    return {
+        "status": "ok",
+        "message": f"{len(worker_names)} worker(s) responded.",
+        "workers": worker_names,
+    }
 
 
 # ── Overview ──────────────────────────────────────────────
@@ -1177,11 +1276,48 @@ def audit_detail(log_id):
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def health():
-    return _placeholder(
-        "System Health",
-        section_icon="health",
-        teaser=(
-            "Live status for the database, Redis, push delivery, background "
-            "workers, and the API — plus recent incidents."
-        ),
+    """Read-only operational status for the platform.
+
+    Each dependency check is isolated: a failure in one produces a
+    red/amber status on the page, never a 500. Audit queries are
+    wrapped in _safe() so a slow or failed audit read degrades to
+    'unavailable' rather than blanking the page.
+    """
+    now = datetime.now(timezone.utc)
+    cutoff_24h = now - timedelta(hours=24)
+
+    checks = {
+        # The application process itself is the thing answering this
+        # request. If this route is executing, the app is up.
+        "application": {"status": "ok", "message": "Serving requests."},
+        "database": _check_db(),
+        "redis": _check_redis(),
+        "celery": _check_celery(),
+    }
+
+    def _recent_audit_health():
+        return (
+            AuditLog.query
+            .order_by(AuditLog.created_at.desc())
+            .limit(10)
+            .all()
+        )
+
+    def _audit_count_24h():
+        return db.session.execute(
+            select(func.count(AuditLog.id))
+            .where(AuditLog.created_at >= cutoff_24h)
+        ).scalar_one()
+
+    recent_audit, recent_audit_err = _safe(_recent_audit_health, default=[])
+    audit_count_24h, audit_count_24h_err = _safe(_audit_count_24h)
+
+    return render_template(
+        "pages/admin/health.html",
+        checks=checks,
+        checked_at=now,
+        recent_audit=recent_audit,
+        recent_audit_err=recent_audit_err,
+        audit_count_24h=audit_count_24h,
+        audit_count_24h_err=audit_count_24h_err,
     )

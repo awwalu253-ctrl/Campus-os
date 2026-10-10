@@ -1,0 +1,148 @@
+{# app/templates/pages/admin/health.html #}
+{% extends "layouts/admin.html" %}
+{% block title %}System Health{% endblock %}
+{% block page_title %}System Health{% endblock %}
+{% set breadcrumb_items = [
+     {'label': 'Overview', 'url': url_for('admin.dashboard')},
+     {'label': 'System Health'}
+   ] %}
+
+{% block content %}
+
+{# ── Status pill mapping ────────────────────────────────
+   Each check returns a status string. Map to a pill colour.
+   Unknown statuses default to gray so a new state never
+   renders as a broken pill. #}
+{% set pill_map = {
+     'ok':             'green',
+     'error':          'red',
+     'broker_error':   'red',
+     'no_workers':     'amber',
+     'unknown':        'gray',
+     'not_configured': 'gray'
+   } %}
+
+{# ── Component display names ─────────────────────────────
+   Present the keys in a stable, human order. #}
+{% set component_labels = {
+     'application': 'Application',
+     'database':    'Database',
+     'redis':       'Redis',
+     'celery':      'Celery'
+   } %}
+{% set component_order = ['application', 'database', 'redis', 'celery'] %}
+
+<h2 class="admin-section-title">Components</h2>
+
+<section class="admin-stat-grid">
+  {% for key in component_order %}
+    {% set c = checks.get(key, {'status': 'unknown', 'message': ''}) %}
+    {% set pill = pill_map.get(c.status, 'gray') %}
+    <div class="admin-stat">
+      <div class="admin-stat__label">{{ component_labels.get(key, key) }}</div>
+      <div style="margin-top: 6px;">
+        <span class="admin-pill admin-pill--{{ pill }}">{{ c.status }}</span>
+      </div>
+      <div class="admin-stat__sub">{{ c.message }}</div>
+    </div>
+  {% endfor %}
+</section>
+
+{# ── Detailed status table ─────────────────────────────── #}
+<section class="admin-panel" style="margin-top: var(--sp-5);">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">Details</h2>
+    <span class="muted" style="font-size: var(--fs-xs);">
+      Checked {{ checked_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}
+    </span>
+  </div>
+  <div class="admin-panel__body">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>Status</th>
+          <th>Detail</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for key in component_order %}
+          {% set c = checks.get(key, {'status': 'unknown', 'message': ''}) %}
+          {% set pill = pill_map.get(c.status, 'gray') %}
+          <tr>
+            <td>{{ component_labels.get(key, key) }}</td>
+            <td>
+              <span class="admin-pill admin-pill--{{ pill }}">{{ c.status }}</span>
+            </td>
+            <td>
+              {{ c.message }}
+              {% if key == 'celery' and c.workers %}
+                <div class="muted" style="font-size: var(--fs-xs); margin-top: 2px;">
+                  Workers:
+                  {% for w in c.workers %}
+                    <span class="mono">{{ w }}</span>{% if not loop.last %}, {% endif %}
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{# ── Recent activity ───────────────────────────────────── #}
+<section class="admin-panel" style="margin-top: var(--sp-4);">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">Recent activity</h2>
+    <span class="muted" style="font-size: var(--fs-sm);">
+      {% if audit_count_24h_err %}
+        Last 24h: —
+      {% else %}
+        Last 24h: {{ audit_count_24h }}
+      {% endif %}
+    </span>
+  </div>
+  <div class="admin-panel__body">
+    {% if recent_audit_err %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">Activity unavailable</div>
+        <div class="admin-empty__body">The audit log query failed.</div>
+      </div>
+    {% elif not recent_audit %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">No activity recorded yet</div>
+        <div class="admin-empty__body">
+          Administrative actions will appear here as they happen.
+        </div>
+      </div>
+    {% else %}
+      <table class="admin-table">
+        <thead>
+          <tr><th>When</th><th>Action</th><th>Entity</th><th>Actor</th></tr>
+        </thead>
+        <tbody>
+          {% for a in recent_audit %}
+            <tr>
+              <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+              <td>{{ a.action }}</td>
+              <td>
+                {{ a.entity_type }}{% if a.entity_id %} · {{ a.entity_id[:8] }}{% endif %}
+              </td>
+              <td>
+                {% if a.actor_id %}
+                  {{ a.actor_id[:8] }}
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}
