@@ -1,0 +1,253 @@
+{# app/templates/pages/admin/pulse_list.html #}
+{% extends "layouts/admin.html" %}
+{% block title %}Campus Pulse{% endblock %}
+{% block page_title %}Campus Pulse{% endblock %}
+{% set breadcrumb_items = [
+     {'label': 'Overview', 'url': url_for('admin.dashboard')},
+     {'label': 'Campus Pulse'}
+   ] %}
+
+{% block content %}
+
+{# Flatten the grouped categories into a key→label map for row lookups. #}
+{% set category_labels = {} %}
+{% for group_name, items in category_choices.items() %}
+  {% for c in items %}
+    {% set _ = category_labels.update({c.key: c.label}) %}
+  {% endfor %}
+{% endfor %}
+
+{# Status pill colours. Keys are the four lifecycle statuses declared
+   in REPORT_STATUS; anything else falls back to gray. #}
+{% set status_pill_map = {
+     'active':  'green',
+     'stale':   'amber',
+     'expired': 'gray',
+     'removed': 'red'
+   } %}
+
+{# Moderation pill colours. #}
+{% set moderation_pill_map = {
+     'visible': 'green',
+     'hidden':  'amber',
+     'removed': 'red'
+   } %}
+
+<form method="get" action="{{ url_for('admin.pulse_list') }}" class="admin-filters">
+  <div class="field">
+    <label for="status">Status</label>
+    <select id="status" name="status">
+      <option value="" {{ 'selected' if not status_filter }}>All</option>
+      {% for choice in status_choices %}
+        <option value="{{ choice }}" {{ 'selected' if status_filter == choice }}>
+          {{ choice }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="moderation">Moderation</label>
+    <select id="moderation" name="moderation">
+      <option value="" {{ 'selected' if not moderation_filter }}>All</option>
+      {% for choice in moderation_choices %}
+        <option value="{{ choice }}" {{ 'selected' if moderation_filter == choice }}>
+          {{ choice }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="category">Category</label>
+    <select id="category" name="category">
+      <option value="" {{ 'selected' if not category_filter }}>All categories</option>
+      {% for group_name, items in category_choices.items() %}
+        <optgroup label="{{ group_name }}">
+          {% for c in items %}
+            <option value="{{ c.key }}" {{ 'selected' if category_filter == c.key }}>
+              {{ c.label }}
+            </option>
+          {% endfor %}
+        </optgroup>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="campus">Campus</label>
+    <select id="campus" name="campus">
+      <option value="" {{ 'selected' if not campus_filter }}>All campuses</option>
+      {% for c in campus_choices %}
+        <option value="{{ c.id }}" {{ 'selected' if campus_filter == c.id }}>
+          {{ c.name }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="reporter">Reporter email</label>
+    <input id="reporter" name="reporter" type="email" value="{{ reporter_email }}"
+           placeholder="student@example.com" autocomplete="off">
+  </div>
+
+  <div class="field">
+    <label for="date_from">From</label>
+    <input id="date_from" name="date_from" type="date" value="{{ date_from }}">
+  </div>
+
+  <div class="field">
+    <label for="date_to">To</label>
+    <input id="date_to" name="date_to" type="date" value="{{ date_to }}">
+  </div>
+
+  <div class="field" style="flex-direction: row; align-items: center; gap: var(--sp-2); min-width: 0;">
+    <input id="flagged" name="flagged" type="checkbox" value="1"
+           {{ 'checked' if flagged_only }}>
+    <label for="flagged" style="text-transform: none; letter-spacing: 0; font-weight: 500; font-size: var(--fs-sm); color: var(--color-text);">
+      Flagged only
+    </label>
+  </div>
+
+  <button type="submit" class="admin-btn admin-btn--primary">Apply</button>
+  <a href="{{ url_for('admin.pulse_list') }}" class="admin-btn admin-btn--ghost">Clear</a>
+</form>
+
+<section class="admin-panel">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">
+      {{ pagination.total }} report{{ '' if pagination.total == 1 else 's' }}
+    </h2>
+  </div>
+
+  {% if not reports %}
+    {% if status_filter or moderation_filter or category_filter or campus_filter or reporter_email or date_from or date_to or flagged_only %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">No reports match these filters</div>
+        <div class="admin-empty__body">Try clearing the search or filters.</div>
+      </div>
+    {% else %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">No Campus Pulse reports yet</div>
+        <div class="admin-empty__body">
+          Student-submitted reports will appear here as they are created.
+        </div>
+      </div>
+    {% endif %}
+  {% else %}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Reported</th>
+          <th>Category</th>
+          <th>Campus</th>
+          <th>Reporter</th>
+          <th>Status</th>
+          <th>Moderation</th>
+          <th>Flags</th>
+          <th>Confidence</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in reports %}
+          <tr>
+            <td>{{ r.reported_at.strftime('%Y-%m-%d %H:%M') }}</td>
+
+            <td>
+              {% set _label = category_labels.get(r.category) %}
+              {{ _label if _label else r.category }}
+            </td>
+
+            <td>
+              {% set _campus = lookups.campuses.get(r.campus_id) %}
+              {{ _campus.name if _campus else '—' }}
+            </td>
+
+            <td>
+              {% set _user = lookups.users.get(r.reported_by) if r.reported_by else None %}
+              {% if _user %}
+                {{ _user.display_name }}
+              {% elif r.reported_by %}
+                <span class="muted mono" style="font-size: var(--fs-xs);">
+                  {{ r.reported_by[:8] }}
+                </span>
+              {% else %}
+                <span class="muted">—</span>
+              {% endif %}
+            </td>
+
+            <td>
+              {% set _pill = status_pill_map.get(r.status, 'gray') %}
+              <span class="admin-pill admin-pill--{{ _pill }}">{{ r.status }}</span>
+            </td>
+
+            <td>
+              {% set _pill = moderation_pill_map.get(r.moderation_status, 'gray') %}
+              <span class="admin-pill admin-pill--{{ _pill }}">{{ r.moderation_status }}</span>
+            </td>
+
+            <td>
+              {% if r.flag_count and r.flag_count > 0 %}
+                <strong>{{ r.flag_count }}</strong>
+              {% else %}
+                <span class="muted">0</span>
+              {% endif %}
+            </td>
+
+            <td>{{ r.confidence }}</td>
+
+            <td style="text-align: right;">
+              <a class="admin-btn admin-btn--sm admin-btn--ghost"
+                 href="{{ url_for('admin.pulse_detail', report_id=r.id) }}">
+                View
+              </a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="admin-pagination">
+      <span>
+        Page {{ pagination.page }} of {{ pagination.pages or 1 }} ·
+        {{ pagination.total }} total
+      </span>
+      <div class="admin-pagination__buttons">
+        {% if pagination.has_prev %}
+          <a class="admin-btn admin-btn--sm admin-btn--ghost"
+             href="{{ url_for('admin.pulse_list',
+                              status=status_filter,
+                              moderation=moderation_filter,
+                              category=category_filter,
+                              campus=campus_filter,
+                              reporter=reporter_email,
+                              date_from=date_from,
+                              date_to=date_to,
+                              flagged=('1' if flagged_only else ''),
+                              page=pagination.prev_num) }}">
+            ← Previous
+          </a>
+        {% endif %}
+        {% if pagination.has_next %}
+          <a class="admin-btn admin-btn--sm admin-btn--ghost"
+             href="{{ url_for('admin.pulse_list',
+                              status=status_filter,
+                              moderation=moderation_filter,
+                              category=category_filter,
+                              campus=campus_filter,
+                              reporter=reporter_email,
+                              date_from=date_from,
+                              date_to=date_to,
+                              flagged=('1' if flagged_only else ''),
+                              page=pagination.next_num) }}">
+            Next →
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</section>
+
+{% endblock %}
