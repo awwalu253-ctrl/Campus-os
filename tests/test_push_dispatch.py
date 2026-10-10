@@ -16,6 +16,13 @@ from app.models import Campus, University
 from app.models.user import StudentProfile
 from app.notifications import services as notif_services
 from app.notifications import types as ntypes
+# Importing the submodule explicitly, because Python does not auto-import
+# submodules as package attributes. The tests below patch the path
+# "app.notifications.push.dispatch_for_notification"; that path only
+# resolves if `push` has been imported at least once. Production code
+# imports it lazily inside after_commit, which is deliberate — this
+# import is test-only and does not change production behaviour.
+from app.notifications import push as _push  # noqa: F401
 from app.notifications.models import Notification, PushSubscription
 from app.pulse import services as pulse_services
 
