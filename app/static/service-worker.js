@@ -7,7 +7,7 @@
    - Never cache per-user endpoints such as notifications.
    - Never fabricate live data. */
 
-const VERSION = 'campus-os-v23';
+const VERSION = 'campus-os-v24';
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGES_CACHE = `${VERSION}-pages`;
 const OFFLINE_URL = '/offline';
@@ -54,8 +54,16 @@ function isCacheableApiGet(url) {
 }
 
 // API GETs that must never be cached. Network-only, no cache fallback.
+//
+// Covers:
+//   - /api/v1/notifications  — per-user, must not leak between sessions.
+//   - /map/api/*             — campus-scoped map data. Caching it would
+//                              (a) serve stale markers after an approval,
+//                              and (b) leak one campus's data to another
+//                              on a shared device.
 function isUncacheableApiGet(url) {
   if (url.pathname.startsWith('/api/v1/notifications')) return true;
+  if (url.pathname.startsWith('/map/api/')) return true;
   return false;
 }
 
@@ -64,6 +72,15 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+
+  // Uncacheable API GETs — must be checked BEFORE the HTML branch so
+  // that any URL we classify as uncacheable is guaranteed network-only,
+  // regardless of its Accept header or request mode. This prevents
+  // /map/api/* from falling through into the static-assets cache.
+  if (isUncacheableApiGet(url)) {
+    event.respondWith(fetch(req));
+    return;
+  }
 
   // HTML
   if (req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html')) {
@@ -74,12 +91,6 @@ self.addEventListener('fetch', (event) => {
         return res;
       }).catch(() => caches.match(req).then((r) => r || caches.match(OFFLINE_URL)))
     );
-    return;
-  }
-
-  // Uncacheable API GETs — network-only, no fallback.
-  if (isUncacheableApiGet(url)) {
-    event.respondWith(fetch(req));
     return;
   }
 

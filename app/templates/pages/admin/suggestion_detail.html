@@ -1,0 +1,196 @@
+{# app/templates/pages/admin/suggestion_detail.html #}
+{% extends "layouts/admin.html" %}
+{% block title %}{{ sug.name }}{% endblock %}
+{% block page_title %}Suggestion: {{ sug.name }}{% endblock %}
+{% set breadcrumb_items = [
+     {'label': 'Overview', 'url': url_for('admin.dashboard')},
+     {'label': 'Location Suggestions', 'url': url_for('admin.suggestions_list')},
+     {'label': sug.name}
+   ] %}
+
+{% block content %}
+
+<p style="margin-bottom: var(--sp-4);">
+  <a href="{{ url_for('admin.suggestions_list') }}" class="admin-btn admin-btn--sm admin-btn--ghost">
+    ← Back to suggestions
+  </a>
+</p>
+
+<section class="admin-panel">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">{{ sug.name }}</h2>
+    <span class="admin-pill admin-pill--{{ status_pill }}">{{ sug.status }}</span>
+  </div>
+  <div class="admin-panel__body">
+    <dl class="admin-detail">
+      <dt>Category</dt>
+      <dd>{{ category_label }}</dd>
+
+      <dt>Campus</dt>
+      <dd>
+        {% if campus %}
+          {{ campus.name }}
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </dd>
+
+      <dt>Coordinates</dt>
+      <dd>
+        <span class="mono">{{ '%.6f'|format(sug.lat) }}, {{ '%.6f'|format(sug.lng) }}</span>
+      </dd>
+
+      <dt>Submitted</dt>
+      <dd>{{ sug.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+
+      <dt>Submitted by</dt>
+      <dd>
+        {% if proposer %}
+          <a href="{{ url_for('admin.user_detail', user_id=proposer.id) }}">
+            {{ proposer.display_name }} · {{ proposer.email }}
+          </a>
+        {% elif sug.proposed_by %}
+          <span class="mono">{{ sug.proposed_by }}</span>
+          <div class="muted" style="font-size: var(--fs-xs); margin-top: 2px;">
+            Submitter account no longer exists.
+          </div>
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </dd>
+
+      {% if sug.description %}
+        <dt>Description</dt>
+        <dd>{{ sug.description }}</dd>
+      {% endif %}
+    </dl>
+  </div>
+</section>
+
+{# ── Moderation panel ────────────────────────────────── #}
+<section class="admin-panel" style="margin-top: var(--sp-4);">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">Moderation</h2>
+  </div>
+  <div class="admin-panel__body">
+
+    {% if sug.status == 'pending' %}
+      <p class="muted" style="margin: 0 0 var(--sp-4);">
+        Approving creates a new location and notifies the submitter.
+        Rejecting notifies the submitter without exposing your note.
+      </p>
+
+      <div class="admin-actions">
+        <form method="post"
+              action="{{ url_for('maps.admin_approve', sug_id=sug.id) }}"
+              data-confirm="Approve this suggestion? A new campus location will be created and the submitter will be notified.">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="next" value="{{ url_for('admin.suggestions_list') }}">
+          <button type="submit" class="admin-btn admin-btn--primary">Approve</button>
+        </form>
+      </div>
+
+      <form method="post"
+            action="{{ url_for('maps.admin_reject', sug_id=sug.id) }}"
+            style="margin-top: var(--sp-4);"
+            data-confirm="Reject this suggestion? The submitter will be notified.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ url_for('admin.suggestions_list') }}">
+        <div class="field" style="margin-bottom: var(--sp-3);">
+          <label for="note">Moderation note (optional)</label>
+          <textarea id="note" name="note" rows="3" maxlength="255"
+                    placeholder="Internal note about why this was rejected. Not shown to the submitter."
+                    style="width: 100%; min-height: 80px; padding: var(--sp-3);
+                           border: 1px solid var(--color-border);
+                           border-radius: var(--radius-md);
+                           font: inherit; resize: vertical;"></textarea>
+          <div class="muted" style="font-size: var(--fs-xs); margin-top: 4px;">
+            Visible to admins only. Not included in the submitter's notification.
+          </div>
+        </div>
+        <button type="submit" class="admin-btn admin-btn--danger">Reject</button>
+      </form>
+
+    {% elif sug.status == 'approved' %}
+      <dl class="admin-detail">
+        <dt>Moderated at</dt>
+        <dd>
+          {% if sug.moderated_at %}
+            {{ sug.moderated_at.strftime('%Y-%m-%d %H:%M') }}
+          {% else %}
+            <span class="muted">—</span>
+          {% endif %}
+        </dd>
+
+        <dt>Moderated by</dt>
+        <dd>
+          {% if moderator %}
+            <a href="{{ url_for('admin.user_detail', user_id=moderator.id) }}">
+              {{ moderator.display_name }} · {{ moderator.email }}
+            </a>
+          {% elif sug.moderated_by %}
+            <span class="mono">{{ sug.moderated_by }}</span>
+          {% else %}
+            <span class="muted">—</span>
+          {% endif %}
+        </dd>
+
+        {% if sug.moderation_note %}
+          <dt>Note</dt>
+          <dd>{{ sug.moderation_note }}</dd>
+        {% endif %}
+
+        <dt>Location</dt>
+        <dd>
+          {% if approved_location %}
+            {{ approved_location.name }}
+            <span class="muted">· {{ approved_location.id[:8] }}</span>
+          {% else %}
+            <span class="muted">Not linked.</span>
+          {% endif %}
+        </dd>
+      </dl>
+
+    {% elif sug.status == 'rejected' %}
+      <dl class="admin-detail">
+        <dt>Moderated at</dt>
+        <dd>
+          {% if sug.moderated_at %}
+            {{ sug.moderated_at.strftime('%Y-%m-%d %H:%M') }}
+          {% else %}
+            <span class="muted">—</span>
+          {% endif %}
+        </dd>
+
+        <dt>Moderated by</dt>
+        <dd>
+          {% if moderator %}
+            <a href="{{ url_for('admin.user_detail', user_id=moderator.id) }}">
+              {{ moderator.display_name }} · {{ moderator.email }}
+            </a>
+          {% elif sug.moderated_by %}
+            <span class="mono">{{ sug.moderated_by }}</span>
+          {% else %}
+            <span class="muted">—</span>
+          {% endif %}
+        </dd>
+
+        {% if sug.moderation_note %}
+          <dt>Note</dt>
+          <dd>{{ sug.moderation_note }}</dd>
+        {% endif %}
+      </dl>
+
+    {% else %}
+      {# Defensive: status holds a value we don't recognise. #}
+      <p class="muted" style="margin: 0;">
+        This suggestion has an unrecognised status
+        (<span class="mono">{{ sug.status }}</span>) and cannot be
+        moderated from this page.
+      </p>
+    {% endif %}
+
+  </div>
+</section>
+
+{% endblock %}

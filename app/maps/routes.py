@@ -13,6 +13,23 @@ bp = Blueprint("maps", __name__, url_prefix="/map")
 STAFF_ROLES = ("platform_admin", "campus_admin", "moderator")
 
 
+def _safe_next(default_endpoint: str) -> str:
+    """Return a redirect target for a moderation POST.
+
+    Accepts `next` from the form only when it is a same-origin relative
+    path: starts with a single `/`, not `//`, and not `/\\`. Anything
+    else falls back to url_for(default_endpoint). This prevents the
+    classic open-redirect via a crafted form submission.
+    """
+    candidate = (request.form.get("next") or "").strip()
+    if (
+        candidate.startswith("/")
+        and not candidate.startswith("//")
+        and not candidate.startswith("/\\")
+    ):
+        return candidate
+    return url_for(default_endpoint)
+
 def _campus_id():
     """Return the current user's campus.
 
@@ -179,7 +196,7 @@ def admin_approve(sug_id):
     except ValueError as e:
         db.session.rollback()
         flash(str(e), "error")
-    return redirect(url_for("maps.admin_suggestions"))
+    return redirect(_safe_next("admin.suggestions_list"))
 
 
 @bp.post("/admin/suggestions/<sug_id>/reject")
@@ -197,7 +214,7 @@ def admin_reject(sug_id):
     except ValueError as e:
         db.session.rollback()
         flash(str(e), "error")
-    return redirect(url_for("maps.admin_suggestions"))
+    return redirect(_safe_next("admin.suggestions_list"))
 
 
 @bp.get("/location/<location_id>")

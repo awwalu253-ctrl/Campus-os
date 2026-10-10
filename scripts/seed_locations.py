@@ -6,7 +6,8 @@ Idempotent: skips locations that already exist by name.
 import os
 from app import create_app
 from app.extensions import db
-from app.models import University, Campus, Location
+from app.models import University, Campus
+from app.maps.models import Location
 from app.maps import categories as loc_cats
 
 

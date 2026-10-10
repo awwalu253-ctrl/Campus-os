@@ -19,6 +19,7 @@ from app.core.permissions import requires, Perm
 from app.extensions import db
 from app.models import User, University, Campus
 from app.models.audit import AuditLog
+from app.maps import categories as loc_cats
 from app.maps.models import Location, LocationSuggestion
 from app.notifications.models import Notification, PushSubscription
 from app.pulse.models import CampusReport
@@ -122,6 +123,81 @@ def _parse_page(raw) -> int:
     value = int(text)
     return value if value >= 1 else 1
 
+
+# ── Suggestion helpers ────────────────────────────────────
+SUGGESTIONS_PER_PAGE = 25
+
+_STATUS_PILL_CLASS = {
+    "pending": "amber",
+    "approved": "green",
+    "rejected": "red",
+}
+
+
+def _category_label(key: str | None) -> str:
+    """Human-readable label for a location category key.
+
+    Falls back to the raw key when the value is unknown, so a
+    suggestion with a stale category still renders sensibly.
+    """
+    if not key:
+        return "—"
+    meta = loc_cats.LOCATION_CATEGORIES.get(key)
+    if meta:
+        return meta.get("label", key)
+    return key
+
+
+def _status_pill(status: str | None) -> str:
+    """CSS modifier for the status pill; defaults to gray."""
+    if not status:
+        return "gray"
+    return _STATUS_PILL_CLASS.get(status, "gray")
+
+
+def _bulk_resolve(rows) -> dict:
+    """Resolve campus and user FKs for a list of suggestion rows.
+
+    Returns a dict with three lookup tables keyed by id:
+      {
+        "campuses":      {campus_id: Campus},
+        "users":         {user_id: User},
+        "locations":     {location_id: Location},
+      }
+
+    Any id that doesn't resolve is simply absent from the dict;
+    the template renders an em dash for those cases.
+    """
+    campus_ids = {r.campus_id for r in rows if r.campus_id}
+    user_ids = set()
+    location_ids = set()
+    for r in rows:
+        if r.proposed_by:
+            user_ids.add(r.proposed_by)
+        if r.moderated_by:
+            user_ids.add(r.moderated_by)
+        if r.approved_location_id:
+            location_ids.add(r.approved_location_id)
+
+    campuses = {}
+    if campus_ids:
+        campuses = {
+            c.id: c for c in Campus.query.filter(Campus.id.in_(campus_ids)).all()
+        }
+
+    users = {}
+    if user_ids:
+        users = {
+            u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()
+        }
+
+    locations = {}
+    if location_ids:
+        locations = {
+            l.id: l for l in Location.query.filter(Location.id.in_(location_ids)).all()
+        }
+
+    return {"campuses": campuses, "users": users, "locations": locations}
 
 # ── Overview ──────────────────────────────────────────────
 @bp.get("/")
@@ -473,14 +549,130 @@ def pulse_list():
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def suggestions_list():
-    return _placeholder(
-        "Location Suggestions",
-        section_icon="suggestions",
-        teaser=(
-            "Approve or reject student-submitted location suggestions, with "
-            "an optional moderation note. Approved suggestions become "
-            "campus map locations."
-        ),
+    """Paginated, filterable list of location suggestions."""
+    status_filter = (request.args.get("status") or "").strip()
+    category_filter = (request.args.get("category") or "").strip()
+    campus_filter = (request.args.get("campus") or "").strip()
+    submitter_email = (request.args.get("submitter") or "").strip()
+    q = (request.args.get("q") or "").strip()
+    page = _parse_page(request.args.get("page"))
+
+    # Distinct status values present in the table; matches the audit
+    # pattern so we don't hardcode an enum that could drift.
+    status_choices = [
+        row[0] for row in db.session.execute(
+            select(LocationSuggestion.status).distinct().order_by(LocationSuggestion.status)
+        ).all()
+    ]
+
+    # Categories come from the canonical Python registry, not from
+    # the DB, because the DB is not enforcing the vocabulary.
+    category_choices = loc_cats.all_categories()
+
+    # Campus choices: only campuses that actually have suggestions.
+    # Avoids offering an option that yields an empty page.
+    campus_id_rows = db.session.execute(
+        select(LocationSuggestion.campus_id).distinct()
+    ).all()
+    campus_id_set = {row[0] for row in campus_id_rows if row[0]}
+    campus_choices = []
+    if campus_id_set:
+        campus_choices = (
+            Campus.query
+            .filter(Campus.id.in_(campus_id_set))
+            .order_by(Campus.name)
+            .all()
+        )
+
+    query = LocationSuggestion.query
+
+    if status_filter and status_filter in status_choices:
+        query = query.filter(LocationSuggestion.status == status_filter)
+
+    if category_filter and loc_cats.is_valid(category_filter):
+        query = query.filter(LocationSuggestion.category == category_filter)
+
+    if campus_filter and campus_filter in campus_id_set:
+        query = query.filter(LocationSuggestion.campus_id == campus_filter)
+
+    if submitter_email:
+        normalized = submitter_email.lower()
+        submitter = User.query.filter(
+            func.lower(User.email) == normalized
+        ).first()
+        if submitter is None:
+            # Force zero results without breaking the template.
+            query = query.filter(LocationSuggestion.id == "__no_such_submitter__")
+        else:
+            query = query.filter(LocationSuggestion.proposed_by == submitter.id)
+
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            db.or_(
+                LocationSuggestion.name.ilike(like),
+                LocationSuggestion.description.ilike(like),
+            )
+        )
+
+    pagination = query.order_by(LocationSuggestion.created_at.desc()).paginate(
+        page=page, per_page=SUGGESTIONS_PER_PAGE, error_out=False
+    )
+
+    lookups = _bulk_resolve(pagination.items)
+
+    return render_template(
+        "pages/admin/suggestions_list.html",
+        pagination=pagination,
+        suggestions=pagination.items,
+        lookups=lookups,
+        status_choices=status_choices,
+        category_choices=category_choices,
+        campus_choices=campus_choices,
+        status_filter=status_filter,
+        category_filter=category_filter,
+        campus_filter=campus_filter,
+        submitter_email=submitter_email,
+        q=q,
+    )
+
+
+@bp.get("/suggestions/<sug_id>")
+@login_required
+@requires(Perm.ADMIN_VIEW)
+def suggestion_detail(sug_id):
+    """Single suggestion detail, with moderation state."""
+    sug = db.session.get(LocationSuggestion, sug_id)
+    if sug is None:
+        abort(404)
+
+    # Resolve related entities individually — one suggestion, no N+1
+    # concern here.
+    campus = None
+    if sug.campus_id:
+        campus = db.session.get(Campus, sug.campus_id)
+
+    proposer = None
+    if sug.proposed_by:
+        proposer = db.session.get(User, sug.proposed_by)
+
+    moderator = None
+    if sug.moderated_by:
+        moderator = db.session.get(User, sug.moderated_by)
+
+    approved_location = None
+    if sug.approved_location_id:
+        approved_location = db.session.get(Location, sug.approved_location_id)
+
+    return render_template(
+        "pages/admin/suggestion_detail.html",
+        sug=sug,
+        campus=campus,
+        proposer=proposer,
+        moderator=moderator,
+        approved_location=approved_location,
+        category_label=_category_label(sug.category),
+        status_pill=_status_pill(sug.status),
     )
 
 

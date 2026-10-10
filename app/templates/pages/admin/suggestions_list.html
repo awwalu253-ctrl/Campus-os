@@ -1,0 +1,186 @@
+{# app/templates/pages/admin/suggestions_list.html #}
+{% extends "layouts/admin.html" %}
+{% block title %}Location Suggestions{% endblock %}
+{% block page_title %}Location Suggestions{% endblock %}
+{% set breadcrumb_items = [
+     {'label': 'Overview', 'url': url_for('admin.dashboard')},
+     {'label': 'Location Suggestions'}
+   ] %}
+
+{% block content %}
+
+{# Build quick lookup maps used by the table below. #}
+{% set category_labels = {} %}
+{% for c in category_choices %}
+  {% set _ = category_labels.update({c.key: c.label}) %}
+{% endfor %}
+
+{% set status_pill_map = {
+     'pending':  'amber',
+     'approved': 'green',
+     'rejected': 'red'
+   } %}
+
+<form method="get" action="{{ url_for('admin.suggestions_list') }}" class="admin-filters">
+  <div class="field">
+    <label for="status">Status</label>
+    <select id="status" name="status">
+      <option value="" {{ 'selected' if not status_filter }}>All</option>
+      {% for choice in status_choices %}
+        <option value="{{ choice }}" {{ 'selected' if status_filter == choice }}>
+          {{ choice }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="category">Category</label>
+    <select id="category" name="category">
+      <option value="" {{ 'selected' if not category_filter }}>All categories</option>
+      {% for c in category_choices %}
+        <option value="{{ c.key }}" {{ 'selected' if category_filter == c.key }}>
+          {{ c.label }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="campus">Campus</label>
+    <select id="campus" name="campus">
+      <option value="" {{ 'selected' if not campus_filter }}>All campuses</option>
+      {% for c in campus_choices %}
+        <option value="{{ c.id }}" {{ 'selected' if campus_filter == c.id }}>
+          {{ c.name }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="submitter">Submitter email</label>
+    <input id="submitter" name="submitter" type="email" value="{{ submitter_email }}"
+           placeholder="student@example.com" autocomplete="off">
+  </div>
+
+  <div class="field">
+    <label for="q">Search</label>
+    <input id="q" name="q" type="search" value="{{ q }}"
+           placeholder="Name or description">
+  </div>
+
+  <button type="submit" class="admin-btn admin-btn--primary">Apply</button>
+  <a href="{{ url_for('admin.suggestions_list') }}" class="admin-btn admin-btn--ghost">Clear</a>
+</form>
+
+<section class="admin-panel">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">
+      {{ pagination.total }} suggestion{{ '' if pagination.total == 1 else 's' }}
+    </h2>
+  </div>
+
+  {% if not suggestions %}
+    {% if status_filter or category_filter or campus_filter or submitter_email or q %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">No suggestions match these filters</div>
+        <div class="admin-empty__body">Try clearing the search or filters.</div>
+      </div>
+    {% else %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">No suggestions submitted yet</div>
+        <div class="admin-empty__body">
+          Student-submitted locations will appear here for review.
+        </div>
+      </div>
+    {% endif %}
+  {% else %}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Submitted</th>
+          <th>Name</th>
+          <th>Category</th>
+          <th>Campus</th>
+          <th>Submitted by</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in suggestions %}
+          <tr>
+            <td>{{ s.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>{{ s.name }}</td>
+            <td>
+              {% set _label = category_labels.get(s.category) %}
+              {{ _label if _label else s.category }}
+            </td>
+            <td>
+              {% set _campus = lookups.campuses.get(s.campus_id) %}
+              {{ _campus.name if _campus else '—' }}
+            </td>
+            <td>
+              {% set _user = lookups.users.get(s.proposed_by) if s.proposed_by else None %}
+              {% if _user %}
+                {{ _user.display_name }}
+              {% elif s.proposed_by %}
+                <span class="muted mono" style="font-size: var(--fs-xs);">
+                  {{ s.proposed_by[:8] }}
+                </span>
+              {% else %}
+                <span class="muted">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% set _pill = status_pill_map.get(s.status, 'gray') %}
+              <span class="admin-pill admin-pill--{{ _pill }}">{{ s.status }}</span>
+            </td>
+            <td style="text-align: right;">
+              <a class="admin-btn admin-btn--sm admin-btn--ghost"
+                 href="{{ url_for('admin.suggestion_detail', sug_id=s.id) }}">
+                View
+              </a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="admin-pagination">
+      <span>
+        Page {{ pagination.page }} of {{ pagination.pages or 1 }} ·
+        {{ pagination.total }} total
+      </span>
+      <div class="admin-pagination__buttons">
+        {% if pagination.has_prev %}
+          <a class="admin-btn admin-btn--sm admin-btn--ghost"
+             href="{{ url_for('admin.suggestions_list',
+                              status=status_filter,
+                              category=category_filter,
+                              campus=campus_filter,
+                              submitter=submitter_email,
+                              q=q,
+                              page=pagination.prev_num) }}">
+            ← Previous
+          </a>
+        {% endif %}
+        {% if pagination.has_next %}
+          <a class="admin-btn admin-btn--sm admin-btn--ghost"
+             href="{{ url_for('admin.suggestions_list',
+                              status=status_filter,
+                              category=category_filter,
+                              campus=campus_filter,
+                              submitter=submitter_email,
+                              q=q,
+                              page=pagination.next_num) }}">
+            Next →
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</section>
+
+{% endblock %}

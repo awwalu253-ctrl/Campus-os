@@ -21,3 +21,93 @@
 @media (min-width: 1024px) {
   .map-canvas { height: 70dvh; }
 }
+
+/* ═══════════════════════════════════════════════════════
+   Location marker tooltips
+   ─────────────────────────────────────────────────────
+   Styled hover/focus label above each .cos-marker.
+   Reads the marker's data-name attribute set in map.js.
+   Append-only; no existing rules touched.
+   ═══════════════════════════════════════════════════════ */
+
+/* Ensure the marker can host an absolutely-positioned ::after
+   without disrupting Mapbox's positioning. Mapbox sets the
+   marker's outer element position; .cos-marker itself is a
+   child. `position: relative` here scopes the tooltip to this
+   marker, not to the map container. */
+.cos-marker {
+  position: relative;
+}
+
+/* Tooltip: hidden by default, shown on hover or keyboard focus. */
+.cos-marker::after {
+  content: attr(data-name);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 220px;
+  padding: 4px 10px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-2);
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: normal;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--t-fast);
+  z-index: 5;
+}
+
+/* Small triangular pointer under the tooltip. */
+.cos-marker::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 3px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid var(--color-surface);
+  filter: drop-shadow(0 1px 0 var(--color-border));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--t-fast);
+  z-index: 4;
+}
+
+/* Show tooltip on hover. */
+.cos-marker:hover::after,
+.cos-marker:hover::before {
+  opacity: 1;
+}
+
+/* Show tooltip on keyboard focus. :focus-visible keeps it from
+   appearing on mouse-click focus, which would look odd since the
+   popup is about to open anyway. */
+.cos-marker:focus-visible::after,
+.cos-marker:focus-visible::before {
+  opacity: 1;
+}
+
+/* Visible focus ring on the marker when reached by keyboard. */
+.cos-marker:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--color-surface),
+    0 0 0 4px var(--color-accent);
+}
+
+/* If a marker is ever inside the pulse layer (not currently the
+   case), tooltips would collide. This is future-proofing only. */
+.cos-marker[data-name=""]::after {
+  display: none;
+} 
