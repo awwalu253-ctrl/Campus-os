@@ -1,6 +1,10 @@
 {% extends "layouts/admin.html" %}
 {% block title %}Users{% endblock %}
 {% block page_title %}Users{% endblock %}
+{% set breadcrumb_items = [
+     {'label': 'Overview', 'url': url_for('admin.dashboard')},
+     {'label': 'Users'}
+   ] %}
 
 {% block content %}
 

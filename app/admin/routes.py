@@ -47,9 +47,80 @@ def _safe(fn, default=None):
         return default, str(exc)
 
 
-def _placeholder(title: str):
-    """Render a 'later phase' page inside the admin shell."""
-    return render_template("pages/admin/_placeholder.html", page_title=title)
+def _placeholder(title: str, *, section_icon: str | None = None, teaser: str | None = None):
+    """Render a 'later phase' page inside the admin shell.
+
+    section_icon — one of the recognised keys in the placeholder template's
+                   inline icon macro ('users', 'universities', 'locations',
+                   'pulse', 'suggestions', 'notifications', 'analytics',
+                   'audit', 'health'). Unknown/None falls back to a generic
+                   "not yet built" glyph.
+    teaser       — one short sentence describing the section's planned scope.
+    """
+    return render_template(
+        "pages/admin/_placeholder.html",
+        page_title=title,
+        section_icon=section_icon,
+        teaser=teaser,
+    )
+
+
+# ── Audit helpers ─────────────────────────────────────────
+AUDIT_PER_PAGE = 50
+
+# Human-readable titles for the actions we know about. Unknown
+# actions fall back to a title-cased dotted-string rendering so
+# a new action still shows sensibly without a code change.
+_ACTION_LABELS = {
+    "user.suspend": "User suspended",
+    "user.restore": "User restored",
+}
+
+
+def _action_label(action: str) -> str:
+    """Human-friendly label for an audit action identifier."""
+    if action in _ACTION_LABELS:
+        return _ACTION_LABELS[action]
+    return action.replace(".", " ").replace("_", " ").strip().title()
+
+
+def _audit_summary(entry: AuditLog) -> str:
+    """One-line, human-readable summary of a before/after change.
+
+    Only emits a summary when both sides are dicts and they share
+    at least one key whose values differ. Otherwise returns an
+    em dash, so the table never shows a misleading arrow.
+    """
+    before = entry.before if isinstance(entry.before, dict) else None
+    after = entry.after if isinstance(entry.after, dict) else None
+    if not before or not after:
+        return "—"
+
+    parts = []
+    for key in sorted(set(before) | set(after)):
+        b = before.get(key)
+        a = after.get(key)
+        if b == a:
+            continue
+        parts.append(f"{key}: {b} → {a}")
+
+    return "; ".join(parts) if parts else "—"
+
+
+def _parse_page(raw) -> int:
+    """Parse a page number from a query-string value.
+
+    Returns 1 for None, empty, non-integer, or values below 1.
+    Accepts only ASCII digits (optionally with surrounding
+    whitespace), which rejects "abc", "1.5", "-3", "1,000".
+    """
+    if raw is None:
+        return 1
+    text = str(raw).strip()
+    if not text.isdigit():
+        return 1
+    value = int(text)
+    return value if value >= 1 else 1
 
 
 # ── Overview ──────────────────────────────────────────────
@@ -354,58 +425,240 @@ def restore_user(user_id):
     return redirect(url_for("admin.user_detail", user_id=u.id))
 
 
-# ── Placeholder pages (Phase 3+ will replace these stubs) ──
 @bp.get("/universities")
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def universities_list():
-    return _placeholder("Universities & Campuses")
+    return _placeholder(
+        "Universities & Campuses",
+        section_icon="universities",
+        teaser=(
+            "Add, edit, activate and deactivate universities and their "
+            "campuses, and manage the faculty and department structure "
+            "beneath each campus."
+        ),
+    )
 
 
 @bp.get("/locations")
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def locations_list():
-    return _placeholder("Campus Locations")
+    return _placeholder(
+        "Campus Locations",
+        section_icon="locations",
+        teaser=(
+            "Review, edit and moderate the campus map locations students "
+            "see — including categories, coordinates, and approval status."
+        ),
+    )
 
 
 @bp.get("/pulse")
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def pulse_list():
-    return _placeholder("Campus Pulse")
+    return _placeholder(
+        "Campus Pulse",
+        section_icon="pulse",
+        teaser=(
+            "Moderate and review Campus Pulse reports — investigate flagged "
+            "posts, review reports by campus and category, and manage the "
+            "moderation queue."
+        ),
+    )
 
 
 @bp.get("/suggestions")
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def suggestions_list():
-    return _placeholder("Location Suggestions")
+    return _placeholder(
+        "Location Suggestions",
+        section_icon="suggestions",
+        teaser=(
+            "Approve or reject student-submitted location suggestions, with "
+            "an optional moderation note. Approved suggestions become "
+            "campus map locations."
+        ),
+    )
 
 
 @bp.get("/notifications")
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def notifications_overview():
-    return _placeholder("Notifications & Push")
+    return _placeholder(
+        "Notifications & Push",
+        section_icon="notifications",
+        teaser=(
+            "Compose and target notifications, monitor delivery, and review "
+            "push subscription health across iOS and web clients."
+        ),
+    )
 
 
 @bp.get("/analytics")
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def analytics():
-    return _placeholder("Analytics")
+    return _placeholder(
+        "Analytics",
+        section_icon="analytics",
+        teaser=(
+            "Trends across users, reports, locations, and notification "
+            "engagement — filterable by university, campus and date range."
+        ),
+    )
 
 
 @bp.get("/audit")
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def audit_list():
-    return _placeholder("Audit Logs")
+    """Paginated, filterable audit log list."""
+    action_filter = (request.args.get("action") or "").strip()
+    entity_filter = (request.args.get("entity") or "").strip()
+    actor_email = (request.args.get("actor") or "").strip()
+    date_from = (request.args.get("date_from") or "").strip()
+    date_to = (request.args.get("date_to") or "").strip()
+    page = _parse_page(request.args.get("page"))
+
+    # Distinct values for the filter dropdowns. Cheap on a small
+    # table (action is indexed; entity_type is not, but cardinality
+    # is very low). Empty list when the table is empty.
+    action_choices = [
+        row[0] for row in db.session.execute(
+            select(AuditLog.action).distinct().order_by(AuditLog.action)
+        ).all()
+    ]
+    entity_choices = [
+        row[0] for row in db.session.execute(
+            select(AuditLog.entity_type).distinct().order_by(AuditLog.entity_type)
+        ).all()
+    ]
+
+    # Resolve the actor filter (email -> user id) with a normalized
+    # exact match — email is an identifier, not a free-text search,
+    # so a partial match would be ambiguous. A non-matching email
+    # yields an empty result set; the filter is still surfaced back
+    # to the template so the admin sees what they typed.
+    actor_id_filter = None
+    actor_lookup_failed = False
+    if actor_email:
+        normalized = actor_email.lower()
+        actor = User.query.filter(
+            func.lower(User.email) == normalized
+        ).first()
+        if actor is None:
+            actor_lookup_failed = True
+            actor_id_filter = "__no_such_actor__"
+        else:
+            actor_id_filter = actor.id
+
+    def _parse_date(value: str):
+        """Parse YYYY-MM-DD from an <input type="date">; None on failure."""
+        if not value:
+            return None
+        try:
+            return datetime.strptime(value, "%Y-%m-%d").replace(
+                tzinfo=timezone.utc
+            )
+        except ValueError:
+            return None
+
+    date_from_dt = _parse_date(date_from)
+    date_to_dt = _parse_date(date_to)
+    if date_to_dt is not None:
+        # Make the upper bound inclusive of the whole end day.
+        date_to_dt = date_to_dt + timedelta(days=1)
+
+    query = AuditLog.query
+
+    if action_filter and action_filter in action_choices:
+        query = query.filter(AuditLog.action == action_filter)
+    if entity_filter and entity_filter in entity_choices:
+        query = query.filter(AuditLog.entity_type == entity_filter)
+    if actor_id_filter is not None:
+        query = query.filter(AuditLog.actor_id == actor_id_filter)
+    if date_from_dt is not None:
+        query = query.filter(AuditLog.created_at >= date_from_dt)
+    if date_to_dt is not None:
+        query = query.filter(AuditLog.created_at < date_to_dt)
+
+    pagination = query.order_by(AuditLog.created_at.desc()).paginate(
+        page=page, per_page=AUDIT_PER_PAGE, error_out=False
+    )
+
+    # Attach a rendered summary to each row so the template stays
+    # dumb. Done in Python rather than a template filter because the
+    # logic touches two JSON columns.
+    rows = []
+    for entry in pagination.items:
+        rows.append({
+            "entry": entry,
+            "action_label": _action_label(entry.action),
+            "summary": _audit_summary(entry),
+        })
+
+    return render_template(
+        "pages/admin/audit_list.html",
+        rows=rows,
+        pagination=pagination,
+        action_choices=action_choices,
+        entity_choices=entity_choices,
+        action_filter=action_filter,
+        entity_filter=entity_filter,
+        actor_email=actor_email,
+        date_from=date_from,
+        date_to=date_to,
+        actor_lookup_failed=actor_lookup_failed,
+    )
+
+
+@bp.get("/audit/<log_id>")
+@login_required
+@requires(Perm.ADMIN_VIEW)
+def audit_detail(log_id):
+    """Single audit log entry."""
+    entry = db.session.get(AuditLog, log_id)
+    if entry is None:
+        abort(404)
+
+    # Resolve the actor if the account still exists. Soft-deleted
+    # actors are still returned by db.session.get; the template
+    # decides whether to render a link.
+    actor = None
+    if entry.actor_id:
+        actor = db.session.get(User, entry.actor_id)
+
+    # When the entity is a user, offer a link to that user's detail
+    # page — but only when the target still exists and is not
+    # soft-deleted, otherwise the target route would 404.
+    entity_url = None
+    if entry.entity_type == "user" and entry.entity_id:
+        target = db.session.get(User, entry.entity_id)
+        if target is not None and target.deleted_at is None:
+            entity_url = url_for("admin.user_detail", user_id=target.id)
+
+    return render_template(
+        "pages/admin/audit_detail.html",
+        entry=entry,
+        action_label=_action_label(entry.action),
+        actor=actor,
+        entity_url=entity_url,
+    )
 
 
 @bp.get("/health")
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def health():
-    return _placeholder("System Health")
+    return _placeholder(
+        "System Health",
+        section_icon="health",
+        teaser=(
+            "Live status for the database, Redis, push delivery, background "
+            "workers, and the API — plus recent incidents."
+        ),
+    )

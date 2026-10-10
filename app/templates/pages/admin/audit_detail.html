@@ -1,0 +1,110 @@
+{# app/templates/pages/admin/audit_detail.html #}
+{% extends "layouts/admin.html" %}
+{% block title %}Audit · {{ entry.action }}{% endblock %}
+{% block page_title %}Audit entry{% endblock %}
+{% set breadcrumb_items = [
+     {'label': 'Overview', 'url': url_for('admin.dashboard')},
+     {'label': 'Audit Logs', 'url': url_for('admin.audit_list')},
+     {'label': entry.id[:8]}
+   ] %}
+
+{% block content %}
+
+<p style="margin-bottom: var(--sp-4);">
+  <a href="{{ url_for('admin.audit_list') }}" class="admin-btn admin-btn--sm admin-btn--ghost">
+    ← Back to audit log
+  </a>
+</p>
+
+<section class="admin-panel">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">{{ action_label }}</h2>
+    <span class="admin-pill admin-pill--blue">{{ entry.action }}</span>
+  </div>
+  <div class="admin-panel__body">
+    <dl class="admin-detail">
+      <dt>When</dt>
+      <dd>{{ entry.created_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</dd>
+
+      <dt>Action</dt>
+      <dd>{{ entry.action }}</dd>
+
+      <dt>Entity type</dt>
+      <dd>{{ entry.entity_type }}</dd>
+
+      <dt>Entity ID</dt>
+      <dd>
+        {% if entry.entity_id %}
+          {% if entity_url %}
+            <a href="{{ entity_url }}">{{ entry.entity_id }}</a>
+          {% else %}
+            <span class="mono">{{ entry.entity_id }}</span>
+          {% endif %}
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </dd>
+
+      <dt>Actor</dt>
+      <dd>
+        {% if entry.actor_id %}
+          {% if actor %}
+            {% if actor.deleted_at is none %}
+              <a href="{{ url_for('admin.user_detail', user_id=actor.id) }}">
+                {{ actor.display_name }} · {{ actor.email }}
+              </a>
+            {% else %}
+              {{ actor.display_name }} · {{ actor.email }}
+              <span class="muted">(deleted)</span>
+            {% endif %}
+            <div class="muted" style="font-size: var(--fs-xs); margin-top: 2px;">
+              <span class="mono">{{ entry.actor_id }}</span>
+            </div>
+          {% else %}
+            <span class="mono">{{ entry.actor_id }}</span>
+            <div class="muted" style="font-size: var(--fs-xs); margin-top: 2px;">
+              Actor account no longer exists.
+            </div>
+          {% endif %}
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </dd>
+
+      <dt>Entry ID</dt>
+      <dd><span class="mono">{{ entry.id }}</span></dd>
+    </dl>
+  </div>
+</section>
+
+<section class="admin-panel" style="margin-top: var(--sp-4);">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">Change</h2>
+  </div>
+  <div class="admin-panel__body">
+    <div class="admin-split">
+      <div>
+        <div class="muted" style="font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">
+          Before
+        </div>
+        {% if entry.before %}
+          <pre class="admin-json">{{ entry.before | tojson(indent=2) }}</pre>
+        {% else %}
+          <p class="muted" style="margin: 0;">No value recorded.</p>
+        {% endif %}
+      </div>
+      <div>
+        <div class="muted" style="font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">
+          After
+        </div>
+        {% if entry.after %}
+          <pre class="admin-json">{{ entry.after | tojson(indent=2) }}</pre>
+        {% else %}
+          <p class="muted" style="margin: 0;">No value recorded.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

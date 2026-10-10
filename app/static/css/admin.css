@@ -606,3 +606,43 @@
   flex-wrap: wrap;
   margin-top: var(--sp-4);
 }
+
+/* ═══════════════════════════════════════════════════════
+   Phase 2.2 additions — Audit Logs
+   ─────────────────────────────────────────────────────
+   Append-only. Nothing above this banner is modified.
+   ═══════════════════════════════════════════════════════ */
+
+/* ── JSON payload block ─────────────────────────────── */
+.admin-json {
+  margin: 0;
+  padding: var(--sp-3);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.55;
+  color: var(--color-text);
+  overflow: auto;
+  max-height: 320px;
+  white-space: pre;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-json:empty {
+  display: none;
+}
+
+/* ── Two-column split for before/after ──────────────── */
+.admin-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-4);
+}
+
+@media (max-width: 767px) {
+  .admin-split {
+    grid-template-columns: 1fr;
+  }
+}

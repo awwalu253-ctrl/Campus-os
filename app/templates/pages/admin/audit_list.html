@@ -1,0 +1,166 @@
+{# app/templates/pages/admin/audit_list.html #}
+{% extends "layouts/admin.html" %}
+{% block title %}Audit Logs{% endblock %}
+{% block page_title %}Audit Logs{% endblock %}
+{% set breadcrumb_items = [
+     {'label': 'Overview', 'url': url_for('admin.dashboard')},
+     {'label': 'Audit Logs'}
+   ] %}
+
+{% block content %}
+
+<form method="get" action="{{ url_for('admin.audit_list') }}" class="admin-filters">
+  <div class="field">
+    <label for="action">Action</label>
+    <select id="action" name="action">
+      <option value="" {{ 'selected' if not action_filter }}>All actions</option>
+      {% for choice in action_choices %}
+        <option value="{{ choice }}" {{ 'selected' if action_filter == choice }}>
+          {{ choice }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="entity">Entity</label>
+    <select id="entity" name="entity">
+      <option value="" {{ 'selected' if not entity_filter }}>All entities</option>
+      {% for choice in entity_choices %}
+        <option value="{{ choice }}" {{ 'selected' if entity_filter == choice }}>
+          {{ choice }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="actor">Actor email</label>
+    <input id="actor" name="actor" type="email" value="{{ actor_email }}"
+           placeholder="admin@example.com" autocomplete="off">
+  </div>
+
+  <div class="field">
+    <label for="date_from">From</label>
+    <input id="date_from" name="date_from" type="date" value="{{ date_from }}">
+  </div>
+
+  <div class="field">
+    <label for="date_to">To</label>
+    <input id="date_to" name="date_to" type="date" value="{{ date_to }}">
+  </div>
+
+  <button type="submit" class="admin-btn admin-btn--primary">Apply</button>
+  <a href="{{ url_for('admin.audit_list') }}" class="admin-btn admin-btn--ghost">Clear</a>
+</form>
+
+{% if actor_lookup_failed %}
+  <div class="admin-panel" style="margin-bottom: var(--sp-4);">
+    <div class="admin-panel__body">
+      <div class="admin-empty" style="padding: var(--sp-3) 0;">
+        <div class="admin-empty__title">No user matches “{{ actor_email }}”</div>
+        <div class="admin-empty__body">
+          The actor filter requires an exact email address.
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+<section class="admin-panel">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">
+      {{ pagination.total }} entr{{ 'y' if pagination.total == 1 else 'ies' }}
+    </h2>
+  </div>
+
+  {% if not rows %}
+    {% if action_filter or entity_filter or actor_email or date_from or date_to %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">No audit entries match these filters</div>
+        <div class="admin-empty__body">Try clearing the search or filters.</div>
+      </div>
+    {% else %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">No administrative actions recorded yet</div>
+        <div class="admin-empty__body">
+          Suspending or restoring a user will create the first entry.
+        </div>
+      </div>
+    {% endif %}
+  {% else %}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Action</th>
+          <th>Entity</th>
+          <th>Actor</th>
+          <th>Change</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          {% set a = row.entry %}
+          <tr>
+            <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>{{ row.action_label }}</td>
+            <td>
+              {{ a.entity_type }}{% if a.entity_id %} · {{ a.entity_id[:8] }}{% endif %}
+            </td>
+            <td>
+              {% if a.actor_id %}
+                {{ a.actor_id[:8] }}
+              {% else %}
+                <span class="muted">—</span>
+              {% endif %}
+            </td>
+            <td>{{ row.summary }}</td>
+            <td style="text-align: right;">
+              <a class="admin-btn admin-btn--sm admin-btn--ghost"
+                 href="{{ url_for('admin.audit_detail', log_id=a.id) }}">
+                View
+              </a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="admin-pagination">
+      <span>
+        Page {{ pagination.page }} of {{ pagination.pages or 1 }} ·
+        {{ pagination.total }} total
+      </span>
+      <div class="admin-pagination__buttons">
+        {% if pagination.has_prev %}
+          <a class="admin-btn admin-btn--sm admin-btn--ghost"
+             href="{{ url_for('admin.audit_list',
+                              action=action_filter,
+                              entity=entity_filter,
+                              actor=actor_email,
+                              date_from=date_from,
+                              date_to=date_to,
+                              page=pagination.prev_num) }}">
+            ← Previous
+          </a>
+        {% endif %}
+        {% if pagination.has_next %}
+          <a class="admin-btn admin-btn--sm admin-btn--ghost"
+             href="{{ url_for('admin.audit_list',
+                              action=action_filter,
+                              entity=entity_filter,
+                              actor=actor_email,
+                              date_from=date_from,
+                              date_to=date_to,
+                              page=pagination.next_num) }}">
+            Next →
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</section>
+
+{% endblock %}  
