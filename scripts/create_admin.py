@@ -5,7 +5,13 @@ Usage:
 or:
     python -m scripts.create_admin you@example.com "Your Name"
 """
+"""Create an admin user. DEV ONLY."""
+import os
 import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import argparse
+
 from app import create_app
 from app.extensions import db
 from app.models import User, TrustScore

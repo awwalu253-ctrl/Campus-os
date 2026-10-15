@@ -3,6 +3,15 @@
 Refuses to run unless FLASK_ENV=development.
 """
 import os
+import os
+import sys
+
+# Allow `python scripts/seed_dev.py` from the project root without
+# requiring PYTHONPATH to be set. Python sets sys.path[0] to the
+# script's own directory, so the project root needs to be added
+# explicitly for `from app import ...` to resolve.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from app import create_app
 from app.extensions import db
 from app.models import University, Campus, Faculty, Department, Programme, Level
