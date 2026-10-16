@@ -1,0 +1,286 @@
+{# app/templates/pages/admin/notifications.html #}
+{% extends "layouts/admin.html" %}
+{% block title %}Notifications &amp; Push{% endblock %}
+{% block page_title %}Notifications &amp; Push{% endblock %}
+{% set breadcrumb_items = [
+     {'label': 'Overview', 'url': url_for('admin.dashboard')},
+     {'label': 'Notifications & Push'}
+   ] %}
+
+{% block content %}
+
+{# ── Stat grid ─────────────────────────────────────────── #}
+<h2 class="admin-section-title">Notifications</h2>
+<section class="admin-stat-grid">
+  <div class="admin-stat">
+    <div class="admin-stat__label">Total</div>
+    {% if total_notifications_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% else %}
+      <div class="admin-stat__value">{{ total_notifications }}</div>
+    {% endif %}
+  </div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Unread</div>
+    {% if unread_notifications_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% else %}
+      <div class="admin-stat__value">{{ unread_notifications }}</div>
+      <div class="admin-stat__sub">Read state not yet set</div>
+    {% endif %}
+  </div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Last 24 hours</div>
+    {% if notifications_24h_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% else %}
+      <div class="admin-stat__value">{{ notifications_24h }}</div>
+      <div class="admin-stat__sub">Created in the last day</div>
+    {% endif %}
+  </div>
+</section>
+
+<h2 class="admin-section-title">Push subscriptions</h2>
+<section class="admin-stat-grid">
+  <div class="admin-stat">
+    <div class="admin-stat__label">Total</div>
+    {% if total_subscriptions_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% else %}
+      <div class="admin-stat__value">{{ total_subscriptions }}</div>
+    {% endif %}
+  </div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Active (7d)</div>
+    {% if active_subscriptions_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% else %}
+      <div class="admin-stat__value">{{ active_subscriptions }}</div>
+      <div class="admin-stat__sub">Delivered to in last 7 days</div>
+    {% endif %}
+  </div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Stale</div>
+    {% if stale_subscriptions_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% else %}
+      <div class="admin-stat__value">{{ stale_subscriptions }}</div>
+      <div class="admin-stat__sub">Created &gt;30d ago, never delivered</div>
+    {% endif %}
+  </div>
+</section>
+
+{# ── By type ───────────────────────────────────────────── #}
+<section class="admin-panel" style="margin-top: var(--sp-5);">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">By type</h2>
+  </div>
+  <div class="admin-panel__body">
+    {% if type_breakdown_err %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">Type breakdown unavailable</div>
+        <div class="admin-empty__body">The grouped count query failed.</div>
+      </div>
+    {% else %}
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Category</th>
+            <th style="text-align: right;">Sent</th>
+            <th style="text-align: right;">Unread</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in type_breakdown %}
+            <tr>
+              <td>{{ row.label }}</td>
+              <td>
+                {% if row.category and row.category != '—' %}
+                  <span class="admin-pill admin-pill--gray">{{ row.category }}</span>
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+              <td style="text-align: right;">
+                {% if row.total %}
+                  {{ row.total }}
+                {% else %}
+                  <span class="muted">0</span>
+                {% endif %}
+              </td>
+              <td style="text-align: right;">
+                {% if row.unread %}
+                  {{ row.unread }}
+                {% else %}
+                  <span class="muted">0</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+</section>
+
+{# ── Recent notifications ──────────────────────────────── #}
+<section class="admin-panel" style="margin-top: var(--sp-4);">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">Recent notifications</h2>
+    <span class="muted" style="font-size: var(--fs-xs);">Latest 10</span>
+  </div>
+  <div class="admin-panel__body">
+    {% if recent_notifications_err %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">Notifications unavailable</div>
+        <div class="admin-empty__body">The query failed.</div>
+      </div>
+    {% elif not recent_notifications %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">No notifications yet</div>
+        <div class="admin-empty__body">
+          Notifications will appear here as they are created.
+        </div>
+      </div>
+    {% else %}
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Type</th>
+            <th>Recipient</th>
+            <th>Title</th>
+            <th>Read</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for n in recent_notifications %}
+            <tr>
+              <td>{{ n.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+              <td>{{ n.type }}</td>
+              <td>
+                {% set _u = recent_notif_lookups.users.get(n.recipient_id) if n.recipient_id else None %}
+                {% if _u %}
+                  <a href="{{ url_for('admin.user_detail', user_id=_u.id) }}">
+                    {{ _u.display_name }}
+                  </a>
+                {% elif n.recipient_id %}
+                  <span class="mono muted" style="font-size: var(--fs-xs);">
+                    {{ n.recipient_id[:8] }}
+                  </span>
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+              <td>{{ n.title }}</td>
+              <td>
+                {% if n.read_at %}
+                  <span class="admin-pill admin-pill--gray">read</span>
+                {% else %}
+                  <span class="admin-pill admin-pill--blue">unread</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if n.action_url %}
+                  {% if n.action_url|length > 40 %}
+                    <span class="mono" style="font-size: var(--fs-xs);" title="{{ n.action_url }}">
+                      {{ n.action_url[:39] }}…
+                    </span>
+                  {% else %}
+                    <span class="mono" style="font-size: var(--fs-xs);">{{ n.action_url }}</span>
+                  {% endif %}
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+</section>
+
+{# ── Recent subscriptions ──────────────────────────────── #}
+<section class="admin-panel" style="margin-top: var(--sp-4);">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">Recent push subscriptions</h2>
+    <span class="muted" style="font-size: var(--fs-xs);">Latest 10</span>
+  </div>
+  <div class="admin-panel__body">
+    {% if recent_subscriptions_err %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">Subscriptions unavailable</div>
+        <div class="admin-empty__body">The query failed.</div>
+      </div>
+    {% elif not recent_subscriptions %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">No push subscriptions yet</div>
+        <div class="admin-empty__body">
+          Subscriptions will appear here when students enable push.
+        </div>
+      </div>
+    {% else %}
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Registered</th>
+            <th>User</th>
+            <th>Device</th>
+            <th>Last delivered</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in recent_subscriptions %}
+            <tr>
+              <td>{{ s.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+              <td>
+                {% set _u = recent_sub_lookups.users.get(s.user_id) if s.user_id else None %}
+                {% if _u %}
+                  <a href="{{ url_for('admin.user_detail', user_id=_u.id) }}">
+                    {{ _u.display_name }}
+                  </a>
+                {% elif s.user_id %}
+                  <span class="mono muted" style="font-size: var(--fs-xs);">
+                    {{ s.user_id[:8] }}
+                  </span>
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if s.user_agent %}
+                  {% set _short = shorten_ua(s.user_agent) %}
+                  {% if _short != s.user_agent %}
+                    <span title="{{ s.user_agent }}">{{ _short }}</span>
+                  {% else %}
+                    {{ _short }}
+                  {% endif %}
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if s.last_success_at %}
+                  {{ s.last_success_at.strftime('%Y-%m-%d %H:%M') }}
+                {% else %}
+                  <span class="muted">Never</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}

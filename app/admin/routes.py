@@ -306,6 +306,88 @@ def _bulk_resolve_pulse(rows) -> dict:
 # helper ever puts exception text, credentials, connection strings, or
 # config values into the response.
 
+# ── Notifications helpers ─────────────────────────────────
+# Read-only metrics for the admin Notifications & Push page.
+# Every helper returns a plain value or a small dict; none raise.
+# No helper touches PushSubscription.endpoint, p256dh, auth, or
+# Notification.dedupe_key — those are never surfaced to the admin.
+
+# Reuse the same stale-subscription definition as the Overview page:
+# created more than 30 days ago and never successfully delivered.
+STALE_PUSH_DAYS = 30
+ACTIVE_PUSH_DAYS = 7
+
+
+def _notification_type_label(key: str | None) -> str:
+    """Human label for a notification type key.
+
+    Uses the canonical registry from app.notifications.types. Falls
+    back to the raw key so an unregistered type still renders sensibly.
+    """
+    if not key:
+        return "—"
+    from app.notifications import types as ntypes
+    meta = ntypes.meta(key)
+    if meta:
+        return meta.get("label", key)
+    return key
+
+
+def _notification_type_category(key: str | None) -> str:
+    """Category string for a notification type key ('pulse', 'locations')."""
+    if not key:
+        return "—"
+    from app.notifications import types as ntypes
+    meta = ntypes.meta(key)
+    if meta:
+        return meta.get("category", "—")
+    return "—"
+
+
+def _bulk_resolve_recipients(rows) -> dict:
+    """Resolve recipient_id FKs for a list of Notification rows.
+
+    Returns {"users": {user_id: User}}. Missing ids are absent;
+    the template renders a short id prefix for those cases.
+    """
+    recipient_ids = {r.recipient_id for r in rows if r.recipient_id}
+    users = {}
+    if recipient_ids:
+        users = {
+            u.id: u for u in User.query.filter(User.id.in_(recipient_ids)).all()
+        }
+    return {"users": users}
+
+
+def _bulk_resolve_subscription_users(rows) -> dict:
+    """Resolve user_id FKs for a list of PushSubscription rows.
+
+    Same shape as _bulk_resolve_recipients.
+    """
+    user_ids = {s.user_id for s in rows if s.user_id}
+    users = {}
+    if user_ids:
+        users = {
+            u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()
+        }
+    return {"users": users}
+
+
+def _shorten_ua(user_agent: str | None, *, max_len: int = 60) -> str:
+    """Compact display for a User-Agent string.
+
+    The full string is preserved by the caller via a title= attribute;
+    this helper only shortens it for the table cell. Returns an em dash
+    when the value is missing.
+    """
+    if not user_agent:
+        return "—"
+    ua = user_agent.strip()
+    if len(ua) <= max_len:
+        return ua
+    return ua[:max_len - 1] + "…"
+
+
 def _check_db() -> dict:
     """Database liveness via a trivial SELECT.
 
@@ -1131,18 +1213,159 @@ def suggestion_detail(sug_id):
     )
 
 
-# ── Notifications stub ────────────────────────────────────
+# ── Notifications & Push (read-only overview) ─────────────
 @bp.get("/notifications")
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def notifications_overview():
-    return _placeholder(
-        "Notifications & Push",
-        section_icon="notifications",
-        teaser=(
-            "Compose and target notifications, monitor delivery, and review "
-            "push subscription health across iOS and web clients."
-        ),
+    """Read-only dashboard of Notification and PushSubscription state.
+
+    Every count shown here is backed by a real column. No metric is
+    fabricated. Specifically, this page does not show push failure
+    counts or delivery rates — those are not persisted anywhere in the
+    current schema.
+    """
+    now = datetime.now(timezone.utc)
+    cutoff_24h = now - timedelta(hours=24)
+    cutoff_7d = now - timedelta(days=ACTIVE_PUSH_DAYS)
+    cutoff_30d = now - timedelta(days=STALE_PUSH_DAYS)
+
+    # ── Notification counts ─────────────────────────────
+    total_notifications, total_notif_err = _safe(
+        lambda: db.session.execute(
+            select(func.count(Notification.id))
+        ).scalar_one()
+    )
+    unread_notifications, unread_notif_err = _safe(
+        lambda: db.session.execute(
+            select(func.count(Notification.id))
+            .where(Notification.read_at.is_(None))
+            .where(Notification.dismissed_at.is_(None))
+        ).scalar_one()
+    )
+    notifications_24h, notif_24h_err = _safe(
+        lambda: db.session.execute(
+            select(func.count(Notification.id))
+            .where(Notification.created_at >= cutoff_24h)
+        ).scalar_one()
+    )
+
+    # ── Subscription counts ─────────────────────────────
+    total_subscriptions, total_sub_err = _safe(
+        lambda: db.session.execute(
+            select(func.count(PushSubscription.id))
+        ).scalar_one()
+    )
+    active_subscriptions, active_sub_err = _safe(
+        lambda: db.session.execute(
+            select(func.count(PushSubscription.id))
+            .where(PushSubscription.last_success_at.isnot(None))
+            .where(PushSubscription.last_success_at >= cutoff_7d)
+        ).scalar_one()
+    )
+    stale_subscriptions, stale_sub_err = _safe(
+        lambda: db.session.execute(
+            select(func.count(PushSubscription.id))
+            .where(PushSubscription.created_at < cutoff_30d)
+            .where(PushSubscription.last_success_at.is_(None))
+        ).scalar_one()
+    )
+
+    # ── By type ─────────────────────────────────────────
+    # One row per type in the canonical registry, plus any types that
+    # actually exist in the database (in case the registry was updated
+    # after rows were written). Fixed order: registry first, then any
+    # additional keys alphabetically. Counts come from a single grouped
+    # query; missing keys render as zero.
+    from app.notifications import types as ntypes
+
+    def _type_counts():
+        rows = db.session.execute(
+            select(
+                Notification.type,
+                func.count(Notification.id),
+                func.count(Notification.id).filter(Notification.read_at.is_(None)),
+            )
+            .group_by(Notification.type)
+        ).all()
+        return rows
+
+    type_rows, type_err = _safe(_type_counts, default=[])
+
+    # Build a dict keyed by type string → (total, unread)
+    counts_by_type = {}
+    for t, total, unread in type_rows:
+        counts_by_type[t] = {"total": total, "unread": unread}
+
+    # Ordered list: every registered key first, preserving insertion
+    # order from REGISTRY; then any unregistered keys seen in the DB.
+    ordered_keys = list(ntypes.REGISTRY.keys())
+    for t in sorted(counts_by_type.keys()):
+        if t not in ordered_keys:
+            ordered_keys.append(t)
+
+    type_breakdown = [
+        {
+            "key": t,
+            "label": _notification_type_label(t),
+            "category": _notification_type_category(t),
+            "total": counts_by_type.get(t, {}).get("total", 0),
+            "unread": counts_by_type.get(t, {}).get("unread", 0),
+        }
+        for t in ordered_keys
+    ]
+
+    # ── Recent notifications ────────────────────────────
+    def _recent_notifications():
+        return (
+            Notification.query
+            .order_by(Notification.created_at.desc())
+            .limit(10)
+            .all()
+        )
+
+    recent_notifications, recent_notif_err = _safe(
+        _recent_notifications, default=[]
+    )
+    recent_notif_lookups = _bulk_resolve_recipients(recent_notifications)
+
+    # ── Recent subscriptions ────────────────────────────
+    def _recent_subscriptions():
+        return (
+            PushSubscription.query
+            .order_by(PushSubscription.created_at.desc())
+            .limit(10)
+            .all()
+        )
+
+    recent_subscriptions, recent_sub_err = _safe(
+        _recent_subscriptions, default=[]
+    )
+    recent_sub_lookups = _bulk_resolve_subscription_users(recent_subscriptions)
+
+    return render_template(
+        "pages/admin/notifications.html",
+        total_notifications=total_notifications,
+        total_notifications_err=total_notif_err,
+        unread_notifications=unread_notifications,
+        unread_notifications_err=unread_notif_err,
+        notifications_24h=notifications_24h,
+        notifications_24h_err=notif_24h_err,
+        total_subscriptions=total_subscriptions,
+        total_subscriptions_err=total_sub_err,
+        active_subscriptions=active_subscriptions,
+        active_subscriptions_err=active_sub_err,
+        stale_subscriptions=stale_subscriptions,
+        stale_subscriptions_err=stale_sub_err,
+        type_breakdown=type_breakdown,
+        type_breakdown_err=type_err,
+        recent_notifications=recent_notifications,
+        recent_notifications_err=recent_notif_err,
+        recent_notif_lookups=recent_notif_lookups,
+        recent_subscriptions=recent_subscriptions,
+        recent_subscriptions_err=recent_sub_err,
+        recent_sub_lookups=recent_sub_lookups,
+        shorten_ua=_shorten_ua,
     )
 
 
