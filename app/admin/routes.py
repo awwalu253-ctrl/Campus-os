@@ -388,6 +388,63 @@ def _shorten_ua(user_agent: str | None, *, max_len: int = 60) -> str:
     return ua[:max_len - 1] + "…"
 
 
+# ── Location helpers ──────────────────────────────────────
+LOCATIONS_PER_PAGE = 25
+
+_LOCATION_STATUS_PILL = {
+    "approved": "green",
+    "pending":  "amber",
+    "rejected": "red",
+}
+
+_LOCATION_SOURCE_LABEL = {
+    "student": "Student submission",
+    "admin":   "Admin entry",
+}
+
+
+def _location_status_pill(status: str | None) -> str:
+    """CSS modifier for a Location.status pill."""
+    return _LOCATION_STATUS_PILL.get(status or "", "gray")
+
+
+def _location_source_label(source: str | None) -> str:
+    """Human-readable label for a Location.source value."""
+    if not source:
+        return "—"
+    return _LOCATION_SOURCE_LABEL.get(source, source)
+
+
+def _bulk_resolve_locations(rows) -> dict:
+    """Resolve campus and user FKs for a list of Location rows.
+
+    Returns {"campuses": {id: Campus}, "users": {id: User}}.
+    Location FKs used: campus_id, created_by, verified_by.
+    Missing ids are absent; the template renders an em dash.
+    """
+    campus_ids = {r.campus_id for r in rows if r.campus_id}
+    user_ids = set()
+    for r in rows:
+        if r.created_by:
+            user_ids.add(r.created_by)
+        if r.verified_by:
+            user_ids.add(r.verified_by)
+
+    campuses = {}
+    if campus_ids:
+        campuses = {
+            c.id: c for c in Campus.query.filter(Campus.id.in_(campus_ids)).all()
+        }
+
+    users = {}
+    if user_ids:
+        users = {
+            u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()
+        }
+
+    return {"campuses": campuses, "users": users}
+
+
 def _check_db() -> dict:
     """Database liveness via a trivial SELECT.
 
@@ -798,17 +855,178 @@ def universities_list():
     )
 
 
+# ── Campus Locations (read-only) ──────────────────────────
 @bp.get("/locations")
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def locations_list():
-    return _placeholder(
-        "Campus Locations",
-        section_icon="locations",
-        teaser=(
-            "Review, edit and moderate the campus map locations students "
-            "see — including categories, coordinates, and approval status."
-        ),
+    """Paginated, filterable list of campus map locations.
+
+    Read-only. Editing is deferred to a later phase. All filters are
+    backed by real columns; no metric is fabricated.
+    """
+    status_filter = (request.args.get("status") or "").strip()
+    category_filter = (request.args.get("category") or "").strip()
+    campus_filter = (request.args.get("campus") or "").strip()
+    source_filter = (request.args.get("source") or "").strip()
+    q = (request.args.get("q") or "").strip()
+    date_from = (request.args.get("date_from") or "").strip()
+    date_to = (request.args.get("date_to") or "").strip()
+    page = _parse_page(request.args.get("page"))
+
+    # Distinct values from the DB for status/source/campus; from the
+    # canonical registry for categories.
+    status_choices = [
+        row[0] for row in db.session.execute(
+            select(Location.status).distinct().order_by(Location.status)
+        ).all()
+    ]
+    source_choices = [
+        row[0] for row in db.session.execute(
+            select(Location.source).distinct().order_by(Location.source)
+        ).all()
+    ]
+    category_choices = loc_cats.all_categories()
+
+    campus_id_rows = db.session.execute(
+        select(Location.campus_id).distinct()
+    ).all()
+    campus_id_set = {row[0] for row in campus_id_rows if row[0]}
+    campus_choices = []
+    if campus_id_set:
+        campus_choices = (
+            Campus.query
+            .filter(Campus.id.in_(campus_id_set))
+            .order_by(Campus.name)
+            .all()
+        )
+
+    # Pagination is done via Query.paginate() on a plain Location query,
+    # so Flask-SQLAlchemy's own count runs against a single-entity select
+    # and cannot produce a cartesian product. Coordinates are then fetched
+    # for just this page's rows in a second, bounded query.
+    query = Location.query
+
+    if status_filter and status_filter in status_choices:
+        query = query.filter(Location.status == status_filter)
+    if category_filter and loc_cats.is_valid(category_filter):
+        query = query.filter(Location.category == category_filter)
+    if campus_filter and campus_filter in campus_id_set:
+        query = query.filter(Location.campus_id == campus_filter)
+    if source_filter and source_filter in source_choices:
+        query = query.filter(Location.source == source_filter)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            db.or_(
+                Location.name.ilike(like),
+                Location.description.ilike(like),
+            )
+        )
+
+    date_from_dt = _parse_iso_date(date_from)
+    date_to_dt = _parse_iso_date(date_to)
+    if date_to_dt is not None:
+        # Inclusive of the whole end day.
+        date_to_dt = date_to_dt + timedelta(days=1)
+    if date_from_dt is not None:
+        query = query.filter(Location.created_at >= date_from_dt)
+    if date_to_dt is not None:
+        query = query.filter(Location.created_at < date_to_dt)
+
+    pagination = query.order_by(Location.name).paginate(
+        page=page, per_page=LOCATIONS_PER_PAGE, error_out=False
+    )
+    locations = pagination.items
+
+    # Fetch coordinates for just this page's items in one query.
+    # Extracting lat/lng via ST_Y/ST_X on the point column is a
+    # per-row function evaluation; batching by id keeps it one
+    # round-trip regardless of page size.
+    coords_by_id = {}
+    if locations:
+        location_ids = [loc.id for loc in locations]
+        coord_rows = db.session.execute(
+            select(
+                Location.id,
+                func.ST_Y(Location.point),
+                func.ST_X(Location.point),
+            ).where(Location.id.in_(location_ids))
+        ).all()
+        for row in coord_rows:
+            coords_by_id[row[0]] = {
+                "lat": float(row[1]) if row[1] is not None else None,
+                "lng": float(row[2]) if row[2] is not None else None,
+            }
+
+    lookups = _bulk_resolve_locations(locations)
+
+    return render_template(
+        "pages/admin/locations_list.html",
+        pagination=pagination,
+        locations=locations,
+        coords_by_id=coords_by_id,
+        lookups=lookups,
+        status_choices=status_choices,
+        category_choices=category_choices,
+        campus_choices=campus_choices,
+        source_choices=source_choices,
+        status_filter=status_filter,
+        category_filter=category_filter,
+        campus_filter=campus_filter,
+        source_filter=source_filter,
+        q=q,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+
+@bp.get("/locations/<location_id>")
+@login_required
+@requires(Perm.ADMIN_VIEW)
+def location_detail(location_id):
+    """Single Location detail, read-only."""
+    loc = db.session.get(Location, location_id)
+    if loc is None:
+        abort(404)
+
+    # Extract coordinates in the same query as the row fetch.
+    coord_row = db.session.execute(
+        select(
+            func.ST_Y(Location.point),
+            func.ST_X(Location.point),
+        ).where(Location.id == loc.id)
+    ).first()
+    if coord_row is not None:
+        lat = float(coord_row[0]) if coord_row[0] is not None else None
+        lng = float(coord_row[1]) if coord_row[1] is not None else None
+    else:
+        lat = lng = None
+
+    campus = db.session.get(Campus, loc.campus_id) if loc.campus_id else None
+    creator = db.session.get(User, loc.created_by) if loc.created_by else None
+    verifier = db.session.get(User, loc.verified_by) if loc.verified_by else None
+
+    # Reverse-lookup: the suggestion that produced this location, if any.
+    # The FK lives on the suggestion side, so this is a small indexed query.
+    originating_suggestion = (
+        LocationSuggestion.query
+        .filter_by(approved_location_id=loc.id)
+        .first()
+    )
+
+    return render_template(
+        "pages/admin/location_detail.html",
+        loc=loc,
+        lat=lat,
+        lng=lng,
+        campus=campus,
+        creator=creator,
+        verifier=verifier,
+        category_label=_category_label(loc.category),
+        status_pill=_location_status_pill(loc.status),
+        source_label=_location_source_label(loc.source),
+        originating_suggestion=originating_suggestion,
     )
 
 

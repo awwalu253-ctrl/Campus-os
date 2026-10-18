@@ -1,0 +1,197 @@
+{# app/templates/pages/admin/location_detail.html #}
+{% extends "layouts/admin.html" %}
+{% block title %}{{ loc.name }}{% endblock %}
+{% block page_title %}Location: {{ loc.name }}{% endblock %}
+{% set breadcrumb_items = [
+     {'label': 'Overview', 'url': url_for('admin.dashboard')},
+     {'label': 'Campus Locations', 'url': url_for('admin.locations_list')},
+     {'label': loc.name}
+   ] %}
+
+{% block content %}
+
+<p style="margin-bottom: var(--sp-4);">
+  <a href="{{ url_for('admin.locations_list') }}" class="admin-btn admin-btn--sm admin-btn--ghost">
+    ← Back to locations
+  </a>
+</p>
+
+{# ── Location ────────────────────────────────────────── #}
+<section class="admin-panel">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">{{ loc.name }}</h2>
+    <span class="admin-pill admin-pill--{{ status_pill }}">{{ loc.status }}</span>
+  </div>
+  <div class="admin-panel__body">
+    <dl class="admin-detail">
+      <dt>Category</dt>
+      <dd>
+        {{ category_label }}
+        <span class="muted mono" style="font-size: var(--fs-xs);">· {{ loc.category }}</span>
+      </dd>
+
+      <dt>Campus</dt>
+      <dd>
+        {% if campus %}
+          {{ campus.name }}
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </dd>
+
+      <dt>Coordinates</dt>
+      <dd>
+        {% if lat is not none and lng is not none %}
+          <span class="mono">{{ '%.6f'|format(lat) }}, {{ '%.6f'|format(lng) }}</span>
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </dd>
+
+      <dt>Source</dt>
+      <dd>{{ source_label }}</dd>
+
+      <dt>Description</dt>
+      <dd>
+        {% if loc.description %}
+          {{ loc.description }}
+        {% else %}
+          <span class="muted">No description</span>
+        {% endif %}
+      </dd>
+
+      <dt>Opening hours</dt>
+      <dd>
+        {% if loc.opening_hours %}
+          {{ loc.opening_hours }}
+        {% else %}
+          <span class="muted">Not set</span>
+        {% endif %}
+      </dd>
+
+      <dt>Phone</dt>
+      <dd>
+        {% if loc.phone %}
+          <span class="mono">{{ loc.phone }}</span>
+        {% else %}
+          <span class="muted">Not set</span>
+        {% endif %}
+      </dd>
+
+      <dt>Created</dt>
+      <dd>{{ loc.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+
+      <dt>Created by</dt>
+      <dd>
+        {% if creator %}
+          <a href="{{ url_for('admin.user_detail', user_id=creator.id) }}">
+            {{ creator.display_name }} · {{ creator.email }}
+          </a>
+        {% elif loc.created_by %}
+          <span class="mono">{{ loc.created_by }}</span>
+          <div class="muted" style="font-size: var(--fs-xs); margin-top: 2px;">
+            Account no longer exists.
+          </div>
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </dd>
+
+      <dt>Verified</dt>
+      <dd>
+        {% if loc.verified_at %}
+          {{ loc.verified_at.strftime('%Y-%m-%d %H:%M') }}
+        {% else %}
+          <span class="muted">Not verified</span>
+        {% endif %}
+      </dd>
+
+      <dt>Verified by</dt>
+      <dd>
+        {% if verifier %}
+          <a href="{{ url_for('admin.user_detail', user_id=verifier.id) }}">
+            {{ verifier.display_name }} · {{ verifier.email }}
+          </a>
+        {% elif loc.verified_by %}
+          <span class="mono">{{ loc.verified_by }}</span>
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </dd>
+
+      <dt>Location ID</dt>
+      <dd><span class="mono">{{ loc.id }}</span></dd>
+    </dl>
+  </div>
+</section>
+
+{# ── Origin ──────────────────────────────────────────── #}
+<section class="admin-panel" style="margin-top: var(--sp-4);">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">Origin</h2>
+  </div>
+  <div class="admin-panel__body">
+    {% if originating_suggestion %}
+      <dl class="admin-detail">
+        <dt>Suggestion</dt>
+        <dd>
+          <a href="{{ url_for('admin.suggestion_detail', sug_id=originating_suggestion.id) }}">
+            {{ originating_suggestion.name }}
+          </a>
+          <span class="muted mono" style="font-size: var(--fs-xs);">
+            · {{ originating_suggestion.id[:8] }}
+          </span>
+        </dd>
+
+        <dt>Proposed by</dt>
+        <dd>
+          {% if originating_suggestion.proposed_by %}
+            <span class="mono">{{ originating_suggestion.proposed_by[:8] }}</span>
+          {% else %}
+            <span class="muted">—</span>
+          {% endif %}
+        </dd>
+
+        <dt>Moderated at</dt>
+        <dd>
+          {% if originating_suggestion.moderated_at %}
+            {{ originating_suggestion.moderated_at.strftime('%Y-%m-%d %H:%M') }}
+          {% else %}
+            <span class="muted">—</span>
+          {% endif %}
+        </dd>
+      </dl>
+      <p class="muted" style="margin: var(--sp-4) 0 0; font-size: var(--fs-xs);">
+        This location was created by approving a student suggestion.
+      </p>
+    {% else %}
+      <div class="admin-empty" style="padding: var(--sp-4) 0;">
+        <div class="admin-empty__body">
+          No originating suggestion — this location was created directly by
+          an admin or a seed script.
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+{# ── Student view link ──────────────────────────────── #}
+{% if loc.status == 'approved' %}
+<section class="admin-panel" style="margin-top: var(--sp-4);">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">Student view</h2>
+  </div>
+  <div class="admin-panel__body">
+    <p class="muted" style="margin: 0 0 var(--sp-3); font-size: var(--fs-sm);">
+      This location is approved and visible to students on the map.
+    </p>
+    <a class="admin-btn admin-btn--ghost"
+       href="{{ url_for('maps.location_detail', location_id=loc.id) }}"
+       target="_blank" rel="noopener">
+      Open student view ↗
+    </a>
+  </div>
+</section>
+{% endif %}
+
+{% endblock %}

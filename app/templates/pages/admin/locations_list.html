@@ -1,0 +1,218 @@
+{# app/templates/pages/admin/locations_list.html #}
+{% extends "layouts/admin.html" %}
+{% block title %}Campus Locations{% endblock %}
+{% block page_title %}Campus Locations{% endblock %}
+{% set breadcrumb_items = [
+     {'label': 'Overview', 'url': url_for('admin.dashboard')},
+     {'label': 'Campus Locations'}
+   ] %}
+
+{% block content %}
+
+{# Flatten category_choices into a key→label map for row lookups. #}
+{% set category_labels = {} %}
+{% for c in category_choices %}
+  {% set _ = category_labels.update({c.key: c.label}) %}
+{% endfor %}
+
+{% set status_pill_map = {
+     'approved': 'green',
+     'pending':  'amber',
+     'rejected': 'red'
+   } %}
+
+{% set source_labels = {
+     'student': 'Student submission',
+     'admin':   'Admin entry'
+   } %}
+
+<form method="get" action="{{ url_for('admin.locations_list') }}" class="admin-filters">
+  <div class="field">
+    <label for="status">Status</label>
+    <select id="status" name="status">
+      <option value="" {{ 'selected' if not status_filter }}>All</option>
+      {% for choice in status_choices %}
+        <option value="{{ choice }}" {{ 'selected' if status_filter == choice }}>
+          {{ choice }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="category">Category</label>
+    <select id="category" name="category">
+      <option value="" {{ 'selected' if not category_filter }}>All categories</option>
+      {% for c in category_choices %}
+        <option value="{{ c.key }}" {{ 'selected' if category_filter == c.key }}>
+          {{ c.label }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="campus">Campus</label>
+    <select id="campus" name="campus">
+      <option value="" {{ 'selected' if not campus_filter }}>All campuses</option>
+      {% for c in campus_choices %}
+        <option value="{{ c.id }}" {{ 'selected' if campus_filter == c.id }}>
+          {{ c.name }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="source">Source</label>
+    <select id="source" name="source">
+      <option value="" {{ 'selected' if not source_filter }}>All sources</option>
+      {% for choice in source_choices %}
+        <option value="{{ choice }}" {{ 'selected' if source_filter == choice }}>
+          {{ source_labels.get(choice, choice) }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="q">Search</label>
+    <input id="q" name="q" type="search" value="{{ q }}"
+           placeholder="Name or description">
+  </div>
+
+  <div class="field">
+    <label for="date_from">From</label>
+    <input id="date_from" name="date_from" type="date" value="{{ date_from }}">
+  </div>
+
+  <div class="field">
+    <label for="date_to">To</label>
+    <input id="date_to" name="date_to" type="date" value="{{ date_to }}">
+  </div>
+
+  <button type="submit" class="admin-btn admin-btn--primary">Apply</button>
+  <a href="{{ url_for('admin.locations_list') }}" class="admin-btn admin-btn--ghost">Clear</a>
+</form>
+
+<section class="admin-panel">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">
+      {{ pagination.total }} location{{ '' if pagination.total == 1 else 's' }}
+    </h2>
+  </div>
+
+  {% if not locations %}
+    {% if status_filter or category_filter or campus_filter or source_filter or q or date_from or date_to %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">No locations match these filters</div>
+        <div class="admin-empty__body">Try clearing the search or filters.</div>
+      </div>
+    {% else %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">No campus locations yet</div>
+        <div class="admin-empty__body">
+          Locations will appear here once they are created or approved from
+          student submissions.
+        </div>
+      </div>
+    {% endif %}
+  {% else %}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Category</th>
+          <th>Campus</th>
+          <th>Coordinates</th>
+          <th>Source</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for loc in locations %}
+          <tr>
+            <td>{{ loc.name }}</td>
+
+            <td>
+              {% set _label = category_labels.get(loc.category) %}
+              {{ _label if _label else loc.category }}
+            </td>
+
+            <td>
+              {% set _campus = lookups.campuses.get(loc.campus_id) %}
+              {{ _campus.name if _campus else '—' }}
+            </td>
+
+            <td>
+              {% set _c = coords_by_id.get(loc.id) %}
+              {% if _c and _c.lat is not none and _c.lng is not none %}
+                <span class="mono" style="font-size: var(--fs-xs);">
+                  {{ '%.5f'|format(_c.lat) }}, {{ '%.5f'|format(_c.lng) }}
+                </span>
+              {% else %}
+                <span class="muted">—</span>
+              {% endif %}
+            </td>
+
+            <td>
+              {{ source_labels.get(loc.source, loc.source) }}
+            </td>
+
+            <td>
+              {% set _pill = status_pill_map.get(loc.status, 'gray') %}
+              <span class="admin-pill admin-pill--{{ _pill }}">{{ loc.status }}</span>
+            </td>
+
+            <td style="text-align: right;">
+              <a class="admin-btn admin-btn--sm admin-btn--ghost"
+                 href="{{ url_for('admin.location_detail', location_id=loc.id) }}">
+                View
+              </a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="admin-pagination">
+      <span>
+        Page {{ pagination.page }} of {{ pagination.pages }} ·
+        {{ pagination.total }} total
+      </span>
+      <div class="admin-pagination__buttons">
+        {% if pagination.has_prev %}
+          <a class="admin-btn admin-btn--sm admin-btn--ghost"
+             href="{{ url_for('admin.locations_list',
+                              status=status_filter,
+                              category=category_filter,
+                              campus=campus_filter,
+                              source=source_filter,
+                              q=q,
+                              date_from=date_from,
+                              date_to=date_to,
+                              page=pagination.prev_num) }}">
+            ← Previous
+          </a>
+        {% endif %}
+        {% if pagination.has_next %}
+          <a class="admin-btn admin-btn--sm admin-btn--ghost"
+             href="{{ url_for('admin.locations_list',
+                              status=status_filter,
+                              category=category_filter,
+                              campus=campus_filter,
+                              source=source_filter,
+                              q=q,
+                              date_from=date_from,
+                              date_to=date_to,
+                              page=pagination.next_num) }}">
+            Next →
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</section>
+
+{% endblock %}
