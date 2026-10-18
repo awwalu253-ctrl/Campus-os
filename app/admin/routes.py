@@ -17,7 +17,9 @@ from sqlalchemy import func, select, text
 from app.core import audit as audit_log
 from app.core.permissions import requires, Perm
 from app.extensions import db
-from app.models import User, University, Campus
+from app.models import (
+    User, University, Campus, Faculty, Department, Programme, Level,
+)
 from app.models.audit import AuditLog
 from app.maps import categories as loc_cats
 from app.maps.models import Location, LocationSuggestion
@@ -387,6 +389,18 @@ def _shorten_ua(user_agent: str | None, *, max_len: int = 60) -> str:
         return ua
     return ua[:max_len - 1] + "…"
 
+# ── Universities helpers ──────────────────────────────────
+UNIVERSITIES_PER_PAGE = 25
+
+
+def _university_active_pill(is_active: bool | None) -> str:
+    """CSS modifier for University.is_active as a pill."""
+    return "green" if is_active else "gray"
+
+
+def _university_active_label(is_active: bool | None) -> str:
+    """Human label for University.is_active."""
+    return "Active" if is_active else "Inactive"
 
 # ── Location helpers ──────────────────────────────────────
 LOCATIONS_PER_PAGE = 25
@@ -840,18 +854,221 @@ def restore_user(user_id):
     return redirect(url_for("admin.user_detail", user_id=u.id))
 
 
+# ── Universities & Campuses (read-only) ───────────────────
 @bp.get("/universities")
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def universities_list():
-    return _placeholder(
-        "Universities & Campuses",
-        section_icon="universities",
-        teaser=(
-            "Add, edit, activate and deactivate universities and their "
-            "campuses, and manage the faculty and department structure "
-            "beneath each campus."
-        ),
+    """Paginated, filterable list of universities.
+
+    Read-only. Editing and hierarchy management are deferred to a later
+    phase. All filters are backed by real columns; no metric is
+    fabricated.
+    """
+    active_filter = (request.args.get("active") or "").strip()
+    q = (request.args.get("q") or "").strip()
+    page = _parse_page(request.args.get("page"))
+
+    query = University.query
+
+    if active_filter == "1":
+        query = query.filter(University.is_active.is_(True))
+    elif active_filter == "0":
+        query = query.filter(University.is_active.is_(False))
+
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            db.or_(
+                University.name.ilike(like),
+                University.short_name.ilike(like),
+                University.state.ilike(like),
+            )
+        )
+
+    pagination = query.order_by(University.name).paginate(
+        page=page, per_page=UNIVERSITIES_PER_PAGE, error_out=False
+    )
+    universities = pagination.items
+
+    # Campus count for the current page in one grouped query.
+    campus_counts = {}
+    if universities:
+        university_ids = [u.id for u in universities]
+        campus_counts = dict(
+            db.session.execute(
+                select(Campus.university_id, func.count(Campus.id))
+                .where(Campus.university_id.in_(university_ids))
+                .group_by(Campus.university_id)
+            ).all()
+        )
+
+    return render_template(
+        "pages/admin/universities_list.html",
+        pagination=pagination,
+        universities=universities,
+        campus_counts=campus_counts,
+        active_filter=active_filter,
+        q=q,
+    )
+
+
+@bp.get("/universities/<university_id>")
+@login_required
+@requires(Perm.ADMIN_VIEW)
+def university_detail(university_id):
+    """Single university detail, with campuses and hierarchy counts.
+
+    Read-only. Faculties, departments, programmes and levels are shown
+    only as aggregate counts per campus — there is no deeper management
+    screen in this phase.
+    """
+    university = db.session.get(University, university_id)
+    if university is None:
+        abort(404)
+
+    campuses = (
+        Campus.query
+        .filter_by(university_id=university.id)
+        .order_by(Campus.name)
+        .all()
+    )
+    campus_ids = [c.id for c in campuses]
+
+    # Aggregated counts per campus, one grouped query per depth level.
+    # When a university has no campuses we skip all four queries rather
+    # than run empty IN() clauses.
+    faculty_counts = {}
+    department_counts = {}
+    programme_counts = {}
+    level_counts = {}
+
+    if campus_ids:
+        faculty_counts = dict(
+            db.session.execute(
+                select(Faculty.campus_id, func.count(Faculty.id))
+                .where(Faculty.campus_id.in_(campus_ids))
+                .group_by(Faculty.campus_id)
+            ).all()
+        )
+
+        department_counts = dict(
+            db.session.execute(
+                select(Faculty.campus_id, func.count(Department.id))
+                .join(Department, Department.faculty_id == Faculty.id)
+                .where(Faculty.campus_id.in_(campus_ids))
+                .group_by(Faculty.campus_id)
+            ).all()
+        )
+
+        programme_counts = dict(
+            db.session.execute(
+                select(Faculty.campus_id, func.count(Programme.id))
+                .join(Department, Department.faculty_id == Faculty.id)
+                .join(Programme, Programme.department_id == Department.id)
+                .where(Faculty.campus_id.in_(campus_ids))
+                .group_by(Faculty.campus_id)
+            ).all()
+        )
+
+        level_counts = dict(
+            db.session.execute(
+                select(Faculty.campus_id, func.count(Level.id))
+                .join(Department, Department.faculty_id == Faculty.id)
+                .join(Programme, Programme.department_id == Department.id)
+                .join(Level, Level.programme_id == Programme.id)
+                .where(Faculty.campus_id.in_(campus_ids))
+                .group_by(Faculty.campus_id)
+            ).all()
+        )
+
+    # Aggregate totals across the whole university — derived from the
+    # per-campus dicts, not from additional queries.
+    totals = {
+        "campuses":    len(campuses),
+        "faculties":   sum(faculty_counts.values()),
+        "departments": sum(department_counts.values()),
+        "programmes":  sum(programme_counts.values()),
+        "levels":      sum(level_counts.values()),
+    }
+
+    return render_template(
+        "pages/admin/university_detail.html",
+        university=university,
+        campuses=campuses,
+        faculty_counts=faculty_counts,
+        department_counts=department_counts,
+        programme_counts=programme_counts,
+        level_counts=level_counts,
+        totals=totals,
+        active_pill=_university_active_pill(university.is_active),
+        active_label=_university_active_label(university.is_active),
+    )
+
+
+@bp.get("/campuses/<campus_id>")
+@login_required
+@requires(Perm.ADMIN_VIEW)
+def campus_detail(campus_id):
+    """Single campus detail, with faculties and hierarchy counts.
+
+    Read-only. Departments, programmes and levels are shown only as
+    aggregate counts per faculty.
+    """
+    campus = db.session.get(Campus, campus_id)
+    if campus is None:
+        abort(404)
+
+    university = db.session.get(University, campus.university_id)
+
+    faculties = (
+        Faculty.query
+        .filter_by(campus_id=campus.id)
+        .order_by(Faculty.name)
+        .all()
+    )
+    faculty_ids = [f.id for f in faculties]
+
+    department_counts = {}
+    programme_counts = {}
+    level_counts = {}
+
+    if faculty_ids:
+        department_counts = dict(
+            db.session.execute(
+                select(Department.faculty_id, func.count(Department.id))
+                .where(Department.faculty_id.in_(faculty_ids))
+                .group_by(Department.faculty_id)
+            ).all()
+        )
+
+        programme_counts = dict(
+            db.session.execute(
+                select(Department.faculty_id, func.count(Programme.id))
+                .join(Programme, Programme.department_id == Department.id)
+                .where(Department.faculty_id.in_(faculty_ids))
+                .group_by(Department.faculty_id)
+            ).all()
+        )
+
+        level_counts = dict(
+            db.session.execute(
+                select(Department.faculty_id, func.count(Level.id))
+                .join(Programme, Programme.department_id == Department.id)
+                .join(Level, Level.programme_id == Programme.id)
+                .where(Department.faculty_id.in_(faculty_ids))
+                .group_by(Department.faculty_id)
+            ).all()
+        )
+
+    return render_template(
+        "pages/admin/campus_detail.html",
+        campus=campus,
+        university=university,
+        faculties=faculties,
+        department_counts=department_counts,
+        programme_counts=programme_counts,
+        level_counts=level_counts,
     )
 
 

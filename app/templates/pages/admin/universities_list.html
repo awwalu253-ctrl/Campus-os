@@ -1,0 +1,127 @@
+{# app/templates/pages/admin/universities_list.html #}
+{% extends "layouts/admin.html" %}
+{% block title %}Universities &amp; Campuses{% endblock %}
+{% block page_title %}Universities &amp; Campuses{% endblock %}
+{% set breadcrumb_items = [
+     {'label': 'Overview', 'url': url_for('admin.dashboard')},
+     {'label': 'Universities & Campuses'}
+   ] %}
+
+{% block content %}
+
+<form method="get" action="{{ url_for('admin.universities_list') }}" class="admin-filters">
+  <div class="field">
+    <label for="active">Status</label>
+    <select id="active" name="active">
+      <option value=""  {{ 'selected' if not active_filter }}>All</option>
+      <option value="1" {{ 'selected' if active_filter == '1' }}>Active</option>
+      <option value="0" {{ 'selected' if active_filter == '0' }}>Inactive</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="q">Search</label>
+    <input id="q" name="q" type="search" value="{{ q }}"
+           placeholder="Name, short name, or state">
+  </div>
+
+  <button type="submit" class="admin-btn admin-btn--primary">Apply</button>
+  <a href="{{ url_for('admin.universities_list') }}" class="admin-btn admin-btn--ghost">Clear</a>
+</form>
+
+<section class="admin-panel">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">
+      {{ pagination.total }} universit{{ 'y' if pagination.total == 1 else 'ies' }}
+    </h2>
+  </div>
+
+  {% if not universities %}
+    {% if active_filter or q %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">No universities match these filters</div>
+        <div class="admin-empty__body">Try clearing the search or filters.</div>
+      </div>
+    {% else %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">No universities yet</div>
+        <div class="admin-empty__body">
+          Universities will appear here once they are created.
+        </div>
+      </div>
+    {% endif %}
+  {% else %}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Short name</th>
+          <th>State</th>
+          <th style="text-align: right;">Campuses</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in universities %}
+          <tr>
+            <td>{{ u.name }}</td>
+            <td>{{ u.short_name }}</td>
+            <td>
+              {% if u.state %}
+                {{ u.state }}
+              {% else %}
+                <span class="muted">—</span>
+              {% endif %}
+            </td>
+            <td style="text-align: right;">
+              {{ campus_counts.get(u.id, 0) }}
+            </td>
+            <td>
+              {% if u.is_active %}
+                <span class="admin-pill admin-pill--green">active</span>
+              {% else %}
+                <span class="admin-pill admin-pill--gray">inactive</span>
+              {% endif %}
+            </td>
+            <td style="text-align: right;">
+              <a class="admin-btn admin-btn--sm admin-btn--ghost"
+                 href="{{ url_for('admin.university_detail', university_id=u.id) }}">
+                View
+              </a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="admin-pagination">
+      <span>
+        Page {{ pagination.page }} of {{ pagination.pages or 1 }} ·
+        {{ pagination.total }} total
+      </span>
+      <div class="admin-pagination__buttons">
+        {% if pagination.has_prev %}
+          <a class="admin-btn admin-btn--sm admin-btn--ghost"
+             href="{{ url_for('admin.universities_list',
+                              active=active_filter,
+                              q=q,
+                              page=pagination.prev_num) }}">
+            ← Previous
+          </a>
+        {% endif %}
+        {% if pagination.has_next %}
+          <a class="admin-btn admin-btn--sm admin-btn--ghost"
+             href="{{ url_for('admin.universities_list',
+                              active=active_filter,
+                              q=q,
+                              page=pagination.next_num) }}">
+            Next →
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</section>
+
+{% endblock %}

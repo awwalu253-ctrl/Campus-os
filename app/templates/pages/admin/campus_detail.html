@@ -1,0 +1,98 @@
+{# app/templates/pages/admin/campus_detail.html #}
+{% extends "layouts/admin.html" %}
+{% block title %}{{ campus.name }}{% endblock %}
+{% block page_title %}{{ campus.name }}{% endblock %}
+{% set breadcrumb_items = [
+     {'label': 'Overview', 'url': url_for('admin.dashboard')},
+     {'label': 'Universities & Campuses', 'url': url_for('admin.universities_list')},
+     {'label': university.name if university else 'University', 'url': url_for('admin.university_detail', university_id=campus.university_id)},
+     {'label': campus.name}
+   ] %}
+
+{% block content %}
+
+<p style="margin-bottom: var(--sp-4);">
+  <a href="{{ url_for('admin.university_detail', university_id=campus.university_id) }}"
+     class="admin-btn admin-btn--sm admin-btn--ghost">
+    ← Back to university
+  </a>
+</p>
+
+{# ── Campus ──────────────────────────────────────────── #}
+<section class="admin-panel">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">{{ campus.name }}</h2>
+  </div>
+  <div class="admin-panel__body">
+    <dl class="admin-detail">
+      <dt>Slug</dt>
+      <dd><span class="mono">{{ campus.slug }}</span></dd>
+
+      <dt>University</dt>
+      <dd>
+        {% if university %}
+          <a href="{{ url_for('admin.university_detail', university_id=university.id) }}">
+            {{ university.name }}
+          </a>
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </dd>
+
+      <dt>Created</dt>
+      <dd>{{ campus.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+
+      <dt>Campus ID</dt>
+      <dd><span class="mono">{{ campus.id }}</span></dd>
+    </dl>
+  </div>
+</section>
+
+{# ── Faculties ───────────────────────────────────────── #}
+<section class="admin-panel" style="margin-top: var(--sp-4);">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">Faculties</h2>
+    <span class="muted" style="font-size: var(--fs-xs);">{{ faculties|length }} total</span>
+  </div>
+  <div class="admin-panel__body">
+    {% if not faculties %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">No faculties under this campus</div>
+        <div class="admin-empty__body">
+          Faculties will appear here once they are created.
+        </div>
+      </div>
+    {% else %}
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Code</th>
+            <th style="text-align: right;">Departments</th>
+            <th style="text-align: right;">Programmes</th>
+            <th style="text-align: right;">Levels</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in faculties %}
+            <tr>
+              <td>{{ f.name }}</td>
+              <td>
+                {% if f.code %}
+                  <span class="mono" style="font-size: var(--fs-xs);">{{ f.code }}</span>
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+              <td style="text-align: right;">{{ department_counts.get(f.id, 0) }}</td>
+              <td style="text-align: right;">{{ programme_counts.get(f.id, 0) }}</td>
+              <td style="text-align: right;">{{ level_counts.get(f.id, 0) }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}

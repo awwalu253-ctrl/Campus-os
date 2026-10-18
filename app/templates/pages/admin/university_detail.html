@@ -1,0 +1,125 @@
+{# app/templates/pages/admin/university_detail.html #}
+{% extends "layouts/admin.html" %}
+{% block title %}{{ university.name }}{% endblock %}
+{% block page_title %}{{ university.name }}{% endblock %}
+{% set breadcrumb_items = [
+     {'label': 'Overview', 'url': url_for('admin.dashboard')},
+     {'label': 'Universities & Campuses', 'url': url_for('admin.universities_list')},
+     {'label': university.name}
+   ] %}
+
+{% block content %}
+
+<p style="margin-bottom: var(--sp-4);">
+  <a href="{{ url_for('admin.universities_list') }}" class="admin-btn admin-btn--sm admin-btn--ghost">
+    ← Back to universities
+  </a>
+</p>
+
+{# ── University ──────────────────────────────────────── #}
+<section class="admin-panel">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">{{ university.name }}</h2>
+    <span class="admin-pill admin-pill--{{ active_pill }}">{{ active_label }}</span>
+  </div>
+  <div class="admin-panel__body">
+    <dl class="admin-detail">
+      <dt>Short name</dt>
+      <dd>{{ university.short_name }}</dd>
+
+      <dt>Slug</dt>
+      <dd><span class="mono">{{ university.slug }}</span></dd>
+
+      <dt>State</dt>
+      <dd>
+        {% if university.state %}
+          {{ university.state }}
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </dd>
+
+      <dt>Created</dt>
+      <dd>{{ university.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+
+      <dt>University ID</dt>
+      <dd><span class="mono">{{ university.id }}</span></dd>
+    </dl>
+  </div>
+</section>
+
+{# ── Aggregate counts ────────────────────────────────── #}
+<h2 class="admin-section-title">Across all campuses</h2>
+<section class="admin-stat-grid">
+  <div class="admin-stat">
+    <div class="admin-stat__label">Campuses</div>
+    <div class="admin-stat__value">{{ totals.campuses }}</div>
+  </div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Faculties</div>
+    <div class="admin-stat__value">{{ totals.faculties }}</div>
+  </div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Departments</div>
+    <div class="admin-stat__value">{{ totals.departments }}</div>
+  </div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Programmes</div>
+    <div class="admin-stat__value">{{ totals.programmes }}</div>
+  </div>
+  <div class="admin-stat">
+    <div class="admin-stat__label">Levels</div>
+    <div class="admin-stat__value">{{ totals.levels }}</div>
+  </div>
+</section>
+
+{# ── Campuses ────────────────────────────────────────── #}
+<section class="admin-panel" style="margin-top: var(--sp-5);">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">Campuses</h2>
+  </div>
+  <div class="admin-panel__body">
+    {% if not campuses %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">No campuses under this university</div>
+        <div class="admin-empty__body">
+          Campuses will appear here once they are created.
+        </div>
+      </div>
+    {% else %}
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Slug</th>
+            <th style="text-align: right;">Faculties</th>
+            <th style="text-align: right;">Departments</th>
+            <th style="text-align: right;">Programmes</th>
+            <th style="text-align: right;">Levels</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in campuses %}
+            <tr>
+              <td>{{ c.name }}</td>
+              <td><span class="mono" style="font-size: var(--fs-xs);">{{ c.slug }}</span></td>
+              <td style="text-align: right;">{{ faculty_counts.get(c.id, 0) }}</td>
+              <td style="text-align: right;">{{ department_counts.get(c.id, 0) }}</td>
+              <td style="text-align: right;">{{ programme_counts.get(c.id, 0) }}</td>
+              <td style="text-align: right;">{{ level_counts.get(c.id, 0) }}</td>
+              <td style="text-align: right;">
+                <a class="admin-btn admin-btn--sm admin-btn--ghost"
+                   href="{{ url_for('admin.campus_detail', campus_id=c.id) }}">
+                  View
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}
