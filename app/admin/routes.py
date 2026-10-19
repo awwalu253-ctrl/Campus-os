@@ -5,7 +5,7 @@ Routes for the Campus OS administration UI.
 Authorization is enforced server-side via @requires(Perm.ADMIN_VIEW) on
 every route. Frontend role hints are cosmetic only.
 """
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from flask import (
     Blueprint, abort, current_app, flash, redirect, render_template,
@@ -401,6 +401,159 @@ def _university_active_pill(is_active: bool | None) -> str:
 def _university_active_label(is_active: bool | None) -> str:
     """Human label for University.is_active."""
     return "Active" if is_active else "Inactive"
+
+# ── Analytics helpers ─────────────────────────────────────
+ANALYTICS_DEFAULT_DAYS = 30
+
+
+def _resolve_date_range(date_from_raw: str | None,
+                        date_to_raw: str | None
+                        ) -> tuple[date, date, bool]:
+    """Resolve the analytics date range from raw query-string values.
+
+    Returns (from_date, to_date, was_reset).
+
+      from_date / to_date are date objects representing the inclusive
+      range [from_date 00:00 UTC, to_date+1day 00:00 UTC).
+
+      was_reset is True when the input dates were both valid but
+      reversed (from > to), in which case we fall back to the default
+      window. Malformed inputs are silently ignored and do not set
+      was_reset — they behave as if the field was empty.
+    """
+    today = datetime.now(timezone.utc).date()
+
+    parsed_from = _parse_iso_date(date_from_raw)
+    parsed_to = _parse_iso_date(date_to_raw)
+
+    if parsed_from is not None and parsed_to is not None:
+        from_date = parsed_from.date()
+        to_date = parsed_to.date()
+        if from_date > to_date:
+            # Reversed range — reset to defaults.
+            to_date = today
+            from_date = to_date - timedelta(days=ANALYTICS_DEFAULT_DAYS - 1)
+            return from_date, to_date, True
+        return from_date, to_date, False
+
+    if parsed_to is not None:
+        to_date = parsed_to.date()
+        from_date = to_date - timedelta(days=ANALYTICS_DEFAULT_DAYS - 1)
+        return from_date, to_date, False
+
+    if parsed_from is not None:
+        from_date = parsed_from.date()
+        to_date = today
+        return from_date, to_date, False
+
+    # Neither provided or both malformed — default window.
+    to_date = today
+    from_date = to_date - timedelta(days=ANALYTICS_DEFAULT_DAYS - 1)
+    return from_date, to_date, False
+
+
+def _range_to_datetimes(from_date: date, to_date: date
+                        ) -> tuple[datetime, datetime]:
+    """Convert a (from_date, to_date) pair into the [start, end) datetimes.
+
+    start = from_date at 00:00 UTC
+    end   = (to_date + 1 day) at 00:00 UTC  (inclusive of to_date itself)
+    """
+    start = datetime.combine(from_date, datetime.min.time()).replace(
+        tzinfo=timezone.utc
+    )
+    end = datetime.combine(
+        to_date + timedelta(days=1), datetime.min.time()
+    ).replace(tzinfo=timezone.utc)
+    return start, end
+
+
+def _fill_daily_series(rows, *, from_date: date, to_date: date) -> list[int]:
+    """Fill a query's per-day counts into a dense calendar series.
+
+    rows — list of (date, count) pairs from a GROUP BY DATE query.
+    The returned list has one integer per day in [from_date, to_date],
+    with zero for days that had no rows.
+    """
+    counts_by_day = {row[0]: int(row[1]) for row in rows}
+    total_days = (to_date - from_date).days + 1
+    return [
+        counts_by_day.get(from_date + timedelta(days=i), 0)
+        for i in range(total_days)
+    ]
+
+
+def _sparkline_svg(values: list[int], *,
+                   aria_label: str,
+                   width: int = 240,
+                   height: int = 40) -> str:
+    """Render a small inline SVG line chart for a numeric series.
+
+    Handles four input shapes safely:
+      - []            → empty SVG with an aria label.
+      - [n]           → single dot at centre.
+      - [0, 0, ..., 0] → flat horizontal line at mid-height.
+      - varying       → polyline scaled to the box.
+
+    The output contains only numeric literals and fixed SVG markup.
+    aria_label is caller-controlled (a section title, not user data) and
+    is escaped into the attribute. The result is safe for |safe use in
+    Jinja templates.
+    """
+    pad = 2
+    inner_h = max(1, height - 2 * pad)
+
+    # Escape the label — even though callers always pass a fixed string,
+    # defence in depth against a future caller passing user data.
+    safe_label = (
+        str(aria_label or "")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+    header = (
+        f'<svg viewBox="0 0 {width} {height}" '
+        f'preserveAspectRatio="none" '
+        f'width="100%" height="{height}" '
+        f'role="img" aria-label="{safe_label}">'
+    )
+    footer = "</svg>"
+
+    if not values:
+        return header + footer
+
+    if len(values) == 1:
+        cx = width / 2
+        cy = height / 2
+        return header + (
+            f'<circle cx="{cx:.2f}" cy="{cy:.2f}" r="2.5" '
+            f'fill="var(--color-primary)"/>'
+        ) + footer
+
+    max_v = max(values)
+    n = len(values)
+
+    if max_v <= 0:
+        y = height / 2
+        return header + (
+            f'<line x1="0" y1="{y:.2f}" x2="{width}" y2="{y:.2f}" '
+            f'stroke="var(--color-primary)" stroke-width="1.5"/>'
+        ) + footer
+
+    points = []
+    for i, v in enumerate(values):
+        x = (i / (n - 1)) * width
+        y = height - pad - (v / max_v) * inner_h
+        points.append(f"{x:.2f},{y:.2f}")
+
+    return header + (
+        f'<polyline points="{" ".join(points)}" '
+        f'fill="none" stroke="var(--color-primary)" '
+        f'stroke-width="1.5" stroke-linejoin="round" '
+        f'stroke-linecap="round"/>'
+    ) + footer
 
 # ── Location helpers ──────────────────────────────────────
 LOCATIONS_PER_PAGE = 25
@@ -1804,18 +1957,331 @@ def notifications_overview():
     )
 
 
-# ── Analytics stub ────────────────────────────────────────
+# ── Analytics (read-only) ─────────────────────────────────
 @bp.get("/analytics")
 @login_required
 @requires(Perm.ADMIN_VIEW)
 def analytics():
-    return _placeholder(
-        "Analytics",
-        section_icon="analytics",
-        teaser=(
-            "Trends across users, reports, locations, and notification "
-            "engagement — filterable by university, campus and date range."
-        ),
+    """Date-filtered analytics dashboard.
+
+    Read-only. Every metric is filtered by the selected [from, to]
+    range where applicable and reflects only what the schema can
+    honestly support. No login history, no retention curves, no
+    delivery rates, no DAU — the schema does not record those.
+
+    Default range: last 30 days (inclusive of today).
+    """
+    date_from_raw = (request.args.get("date_from") or "").strip()
+    date_to_raw = (request.args.get("date_to") or "").strip()
+
+    from_date, to_date, was_reset = _resolve_date_range(date_from_raw, date_to_raw)
+    range_start, range_end = _range_to_datetimes(from_date, to_date)
+
+    # ── Section 1 — Headline stats ──────────────────────
+    new_users, new_users_err = _safe(
+        lambda: db.session.execute(
+            select(func.count(User.id))
+            .where(User.deleted_at.is_(None))
+            .where(User.created_at >= range_start)
+            .where(User.created_at < range_end)
+        ).scalar_one()
+    )
+    new_reports, new_reports_err = _safe(
+        lambda: db.session.execute(
+            select(func.count(CampusReport.id))
+            .where(CampusReport.reported_at >= range_start)
+            .where(CampusReport.reported_at < range_end)
+        ).scalar_one()
+    )
+    new_locations, new_locations_err = _safe(
+        lambda: db.session.execute(
+            select(func.count(Location.id))
+            .where(Location.created_at >= range_start)
+            .where(Location.created_at < range_end)
+        ).scalar_one()
+    )
+    new_notifications, new_notifications_err = _safe(
+        lambda: db.session.execute(
+            select(func.count(Notification.id))
+            .where(Notification.created_at >= range_start)
+            .where(Notification.created_at < range_end)
+        ).scalar_one()
+    )
+    suggestions_approved, suggestions_approved_err = _safe(
+        lambda: db.session.execute(
+            select(func.count(LocationSuggestion.id))
+            .where(LocationSuggestion.status == "approved")
+            .where(LocationSuggestion.moderated_at.isnot(None))
+            .where(LocationSuggestion.moderated_at >= range_start)
+            .where(LocationSuggestion.moderated_at < range_end)
+        ).scalar_one()
+    )
+    admin_actions, admin_actions_err = _safe(
+        lambda: db.session.execute(
+            select(func.count(AuditLog.id))
+            .where(AuditLog.created_at >= range_start)
+            .where(AuditLog.created_at < range_end)
+        ).scalar_one()
+    )
+
+    # ── Section 2 — Daily series (sparklines) ───────────
+    def _daily_series(timestamp_col, model):
+        """Return a per-day count series for the current range."""
+        try:
+            rows = db.session.execute(
+                select(
+                    func.date(timestamp_col).label("d"),
+                    func.count(model.id),
+                )
+                .where(timestamp_col >= range_start)
+                .where(timestamp_col < range_end)
+                .group_by("d")
+                .order_by("d")
+            ).all()
+            return _fill_daily_series(rows, from_date=from_date, to_date=to_date), None
+        except Exception:
+            current_app.logger.exception("admin analytics: daily series failed")
+            return [], "query failed"
+
+    users_series, users_series_err = _safe(
+        lambda: _daily_series(User.created_at, User)[0]
+    )
+    reports_series, reports_series_err = _safe(
+        lambda: _daily_series(CampusReport.reported_at, CampusReport)[0]
+    )
+    locations_series, locations_series_err = _safe(
+        lambda: _daily_series(Location.created_at, Location)[0]
+    )
+    notifications_series, notifications_series_err = _safe(
+        lambda: _daily_series(Notification.created_at, Notification)[0]
+    )
+
+    def _summarize(series: list[int]) -> dict:
+        if not series:
+            return {"total": 0, "peak": 0, "peak_date": None}
+        total = sum(series)
+        peak = max(series)
+        if peak == 0:
+            return {"total": total, "peak": 0, "peak_date": None}
+        peak_idx = series.index(peak)
+        peak_date = from_date + timedelta(days=peak_idx)
+        return {"total": total, "peak": peak, "peak_date": peak_date}
+
+    # ── Section 3 — Breakdowns ──────────────────────────
+    def _reports_by_category():
+        return db.session.execute(
+            select(CampusReport.category, func.count(CampusReport.id))
+            .where(CampusReport.reported_at >= range_start)
+            .where(CampusReport.reported_at < range_end)
+            .group_by(CampusReport.category)
+            .order_by(func.count(CampusReport.id).desc())
+        ).all()
+
+    reports_by_category, reports_by_category_err = _safe(
+        _reports_by_category, default=[]
+    )
+
+    # Fixed status vocabulary from REPORT_STATUS in app.pulse.models.
+    def _reports_by_status():
+        rows = db.session.execute(
+            select(CampusReport.status, func.count(CampusReport.id))
+            .where(CampusReport.reported_at >= range_start)
+            .where(CampusReport.reported_at < range_end)
+            .group_by(CampusReport.status)
+        ).all()
+        return {row[0]: int(row[1]) for row in rows}
+
+    reports_status_counts, reports_status_err = _safe(
+        _reports_by_status, default={}
+    )
+    reports_by_status = [
+        {"status": s, "count": reports_status_counts.get(s, 0)}
+        for s in ("active", "expired", "stale", "removed")
+    ]
+
+    def _locations_by_category():
+        return db.session.execute(
+            select(Location.category, func.count(Location.id))
+            .where(Location.created_at >= range_start)
+            .where(Location.created_at < range_end)
+            .group_by(Location.category)
+            .order_by(func.count(Location.id).desc())
+        ).all()
+
+    locations_by_category, locations_by_category_err = _safe(
+        _locations_by_category, default=[]
+    )
+
+    def _locations_by_source():
+        rows = db.session.execute(
+            select(Location.source, func.count(Location.id))
+            .where(Location.created_at >= range_start)
+            .where(Location.created_at < range_end)
+            .group_by(Location.source)
+        ).all()
+        return {row[0]: int(row[1]) for row in rows}
+
+    locations_source_counts, locations_source_err = _safe(
+        _locations_by_source, default={}
+    )
+    locations_by_source = [
+        {"source": s, "count": locations_source_counts.get(s, 0)}
+        for s in ("student", "admin")
+    ]
+
+    # ── Section 4 — Moderation throughput ───────────────
+    suggestions_rejected, suggestions_rejected_err = _safe(
+        lambda: db.session.execute(
+            select(func.count(LocationSuggestion.id))
+            .where(LocationSuggestion.status == "rejected")
+            .where(LocationSuggestion.moderated_at.isnot(None))
+            .where(LocationSuggestion.moderated_at >= range_start)
+            .where(LocationSuggestion.moderated_at < range_end)
+        ).scalar_one()
+    )
+
+    pulse_moderations, pulse_moderations_err = _safe(
+        lambda: db.session.execute(
+            select(func.count(AuditLog.id))
+            .where(AuditLog.action.in_(
+                ("pulse.hide", "pulse.remove", "pulse.restore")
+            ))
+            .where(AuditLog.created_at >= range_start)
+            .where(AuditLog.created_at < range_end)
+        ).scalar_one()
+    )
+
+    user_moderations, user_moderations_err = _safe(
+        lambda: db.session.execute(
+            select(func.count(AuditLog.id))
+            .where(AuditLog.action.in_(("user.suspend", "user.restore")))
+            .where(AuditLog.created_at >= range_start)
+            .where(AuditLog.created_at < range_end)
+        ).scalar_one()
+    )
+
+    def _avg_time_to_moderate():
+        """Average seconds between created_at and moderated_at for
+        suggestions moderated in this range. Returns None if no rows.
+        """
+        row = db.session.execute(
+            select(
+                func.avg(
+                    func.extract(
+                        "epoch",
+                        LocationSuggestion.moderated_at - LocationSuggestion.created_at,
+                    )
+                )
+            )
+            .where(LocationSuggestion.moderated_at.isnot(None))
+            .where(LocationSuggestion.moderated_at >= range_start)
+            .where(LocationSuggestion.moderated_at < range_end)
+        ).first()
+        if row is None or row[0] is None:
+            return None
+        return int(round(float(row[0])))
+
+    avg_ttm_seconds, avg_ttm_err = _safe(_avg_time_to_moderate)
+
+    def _read_rate():
+        """Share of notifications created in range that have been read.
+
+        Returns (read_count, total_count) or (None, None) if no rows.
+        """
+        total = db.session.execute(
+            select(func.count(Notification.id))
+            .where(Notification.created_at >= range_start)
+            .where(Notification.created_at < range_end)
+        ).scalar_one()
+        if total == 0:
+            return None, None
+        read = db.session.execute(
+            select(func.count(Notification.id))
+            .where(Notification.created_at >= range_start)
+            .where(Notification.created_at < range_end)
+            .where(Notification.read_at.isnot(None))
+        ).scalar_one()
+        return read, total
+
+    read_rate_pair, read_rate_err = _safe(_read_rate, default=(None, None))
+    notifications_read, notifications_total = read_rate_pair
+    if notifications_read is not None and notifications_total:
+        read_rate_pct = round(100.0 * notifications_read / notifications_total, 1)
+    else:
+        read_rate_pct = None
+
+    # ── Sparkline SVGs ──────────────────────────────────
+    sparklines = {
+        "users":         _sparkline_svg(
+            users_series, aria_label="New users per day"
+        ) if not users_series_err else None,
+        "reports":       _sparkline_svg(
+            reports_series, aria_label="New reports per day"
+        ) if not reports_series_err else None,
+        "locations":     _sparkline_svg(
+            locations_series, aria_label="New locations per day"
+        ) if not locations_series_err else None,
+        "notifications": _sparkline_svg(
+            notifications_series, aria_label="Notifications per day"
+        ) if not notifications_series_err else None,
+    }
+
+    return render_template(
+        "pages/admin/analytics.html",
+        range_from=from_date,
+        range_to=to_date,
+        date_from_raw=date_from_raw,
+        date_to_raw=date_to_raw,
+        was_reset=was_reset,
+
+        # Section 1
+        new_users=new_users,
+        new_users_err=new_users_err,
+        new_reports=new_reports,
+        new_reports_err=new_reports_err,
+        new_locations=new_locations,
+        new_locations_err=new_locations_err,
+        new_notifications=new_notifications,
+        new_notifications_err=new_notifications_err,
+        suggestions_approved=suggestions_approved,
+        suggestions_approved_err=suggestions_approved_err,
+        admin_actions=admin_actions,
+        admin_actions_err=admin_actions_err,
+
+        # Section 2
+        users_summary=_summarize(users_series),
+        users_series_err=users_series_err,
+        reports_summary=_summarize(reports_series),
+        reports_series_err=reports_series_err,
+        locations_summary=_summarize(locations_series),
+        locations_series_err=locations_series_err,
+        notifications_summary=_summarize(notifications_series),
+        notifications_series_err=notifications_series_err,
+        sparklines=sparklines,
+
+        # Section 3
+        reports_by_category=reports_by_category,
+        reports_by_category_err=reports_by_category_err,
+        reports_by_status=reports_by_status,
+        reports_status_err=reports_status_err,
+        locations_by_category=locations_by_category,
+        locations_by_category_err=locations_by_category_err,
+        locations_by_source=locations_by_source,
+        locations_source_err=locations_source_err,
+
+        # Section 4
+        suggestions_rejected=suggestions_rejected,
+        suggestions_rejected_err=suggestions_rejected_err,
+        pulse_moderations=pulse_moderations,
+        pulse_moderations_err=pulse_moderations_err,
+        user_moderations=user_moderations,
+        user_moderations_err=user_moderations_err,
+        avg_ttm_seconds=avg_ttm_seconds,
+        avg_ttm_err=avg_ttm_err,
+        read_rate_pct=read_rate_pct,
+        notifications_read=notifications_read,
+        notifications_total=notifications_total,
+        read_rate_err=read_rate_err,
     )
 
 

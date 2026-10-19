@@ -1,0 +1,469 @@
+{# app/templates/pages/admin/analytics.html #}
+{% extends "layouts/admin.html" %}
+{% block title %}Analytics{% endblock %}
+{% block page_title %}Analytics{% endblock %}
+{% set breadcrumb_items = [
+     {'label': 'Overview', 'url': url_for('admin.dashboard')},
+     {'label': 'Analytics'}
+   ] %}
+
+{% block content %}
+
+{# ── Filter ────────────────────────────────────────────── #}
+<form method="get" action="{{ url_for('admin.analytics') }}" class="admin-filters">
+  <div class="field">
+    <label for="date_from">From</label>
+    <input id="date_from" name="date_from" type="date" value="{{ date_from_raw }}">
+  </div>
+  <div class="field">
+    <label for="date_to">To</label>
+    <input id="date_to" name="date_to" type="date" value="{{ date_to_raw }}">
+  </div>
+  <button type="submit" class="admin-btn admin-btn--primary">Apply</button>
+  <a href="{{ url_for('admin.analytics') }}" class="admin-btn admin-btn--ghost">Last 30 days</a>
+</form>
+
+{% if was_reset %}
+  <div class="admin-panel" style="margin-bottom: var(--sp-3);">
+    <div class="admin-panel__body">
+      <div class="admin-empty" style="padding: var(--sp-3) 0;">
+        <div class="admin-empty__body" style="font-size: var(--fs-sm);">
+          Start date was after end date — showing the default last
+          {{ range_from }} → {{ range_to }} instead.
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+{# ── Section 1 — Headline stats ────────────────────────── #}
+<h2 class="admin-section-title">
+  In this range · {{ range_from }} → {{ range_to }}
+</h2>
+<section class="admin-stat-grid">
+  <div class="admin-stat">
+    <div class="admin-stat__label">New users</div>
+    {% if new_users_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% else %}
+      <div class="admin-stat__value">{{ new_users }}</div>
+      <div class="admin-stat__sub">Registered in range</div>
+    {% endif %}
+  </div>
+
+  <div class="admin-stat">
+    <div class="admin-stat__label">New reports</div>
+    {% if new_reports_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% else %}
+      <div class="admin-stat__value">{{ new_reports }}</div>
+    {% endif %}
+  </div>
+
+  <div class="admin-stat">
+    <div class="admin-stat__label">New locations</div>
+    {% if new_locations_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% else %}
+      <div class="admin-stat__value">{{ new_locations }}</div>
+    {% endif %}
+  </div>
+
+  <div class="admin-stat">
+    <div class="admin-stat__label">Notifications</div>
+    {% if new_notifications_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% else %}
+      <div class="admin-stat__value">{{ new_notifications }}</div>
+      <div class="admin-stat__sub">Created in range</div>
+    {% endif %}
+  </div>
+
+  <div class="admin-stat">
+    <div class="admin-stat__label">Suggestion approvals</div>
+    {% if suggestions_approved_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% else %}
+      <div class="admin-stat__value">{{ suggestions_approved }}</div>
+    {% endif %}
+  </div>
+
+  <div class="admin-stat">
+    <div class="admin-stat__label">Admin actions</div>
+    {% if admin_actions_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% else %}
+      <div class="admin-stat__value">{{ admin_actions }}</div>
+      <div class="admin-stat__sub">Audit log rows in range</div>
+    {% endif %}
+  </div>
+</section>
+
+{# ── Section 2 — Time series ──────────────────────────── #}
+<h2 class="admin-section-title">Per day</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--sp-3);">
+
+  {# New users #}
+  <div class="admin-panel">
+    <div class="admin-panel__head">
+      <h3 class="admin-panel__title">New users</h3>
+      <span class="muted" style="font-size: var(--fs-xs);">
+        {% if users_series_err %}
+          Unavailable
+        {% else %}
+          Total {{ users_summary.total }}
+          {% if users_summary.peak > 0 %}
+            · Peak {{ users_summary.peak }} on {{ users_summary.peak_date }}
+          {% endif %}
+        {% endif %}
+      </span>
+    </div>
+    <div class="admin-panel__body" style="padding: var(--sp-2) var(--sp-4);">
+      {% if users_series_err %}
+        <div class="muted" style="padding: var(--sp-3) 0; font-size: var(--fs-sm);">
+          Could not load this series.
+        </div>
+      {% elif sparklines.users %}
+        {{ sparklines.users | safe }}
+      {% else %}
+        <div class="muted" style="padding: var(--sp-3) 0; font-size: var(--fs-sm);">
+          No data.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# New reports #}
+  <div class="admin-panel">
+    <div class="admin-panel__head">
+      <h3 class="admin-panel__title">New reports</h3>
+      <span class="muted" style="font-size: var(--fs-xs);">
+        {% if reports_series_err %}
+          Unavailable
+        {% else %}
+          Total {{ reports_summary.total }}
+          {% if reports_summary.peak > 0 %}
+            · Peak {{ reports_summary.peak }} on {{ reports_summary.peak_date }}
+          {% endif %}
+        {% endif %}
+      </span>
+    </div>
+    <div class="admin-panel__body" style="padding: var(--sp-2) var(--sp-4);">
+      {% if reports_series_err %}
+        <div class="muted" style="padding: var(--sp-3) 0; font-size: var(--fs-sm);">
+          Could not load this series.
+        </div>
+      {% elif sparklines.reports %}
+        {{ sparklines.reports | safe }}
+      {% else %}
+        <div class="muted" style="padding: var(--sp-3) 0; font-size: var(--fs-sm);">
+          No data.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# New locations #}
+  <div class="admin-panel">
+    <div class="admin-panel__head">
+      <h3 class="admin-panel__title">New locations</h3>
+      <span class="muted" style="font-size: var(--fs-xs);">
+        {% if locations_series_err %}
+          Unavailable
+        {% else %}
+          Total {{ locations_summary.total }}
+          {% if locations_summary.peak > 0 %}
+            · Peak {{ locations_summary.peak }} on {{ locations_summary.peak_date }}
+          {% endif %}
+        {% endif %}
+      </span>
+    </div>
+    <div class="admin-panel__body" style="padding: var(--sp-2) var(--sp-4);">
+      {% if locations_series_err %}
+        <div class="muted" style="padding: var(--sp-3) 0; font-size: var(--fs-sm);">
+          Could not load this series.
+        </div>
+      {% elif sparklines.locations %}
+        {{ sparklines.locations | safe }}
+      {% else %}
+        <div class="muted" style="padding: var(--sp-3) 0; font-size: var(--fs-sm);">
+          No data.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Notifications #}
+  <div class="admin-panel">
+    <div class="admin-panel__head">
+      <h3 class="admin-panel__title">Notifications</h3>
+      <span class="muted" style="font-size: var(--fs-xs);">
+        {% if notifications_series_err %}
+          Unavailable
+        {% else %}
+          Total {{ notifications_summary.total }}
+          {% if notifications_summary.peak > 0 %}
+            · Peak {{ notifications_summary.peak }} on {{ notifications_summary.peak_date }}
+          {% endif %}
+        {% endif %}
+      </span>
+    </div>
+    <div class="admin-panel__body" style="padding: var(--sp-2) var(--sp-4);">
+      {% if notifications_series_err %}
+        <div class="muted" style="padding: var(--sp-3) 0; font-size: var(--fs-sm);">
+          Could not load this series.
+        </div>
+      {% elif sparklines.notifications %}
+        {{ sparklines.notifications | safe }}
+      {% else %}
+        <div class="muted" style="padding: var(--sp-3) 0; font-size: var(--fs-sm);">
+          No data.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+{# ── Section 3 — Breakdowns ───────────────────────────── #}
+<h2 class="admin-section-title">Breakdowns · {{ range_from }} → {{ range_to }}</h2>
+
+{# Reports by category #}
+<section class="admin-panel">
+  <div class="admin-panel__head">
+    <h3 class="admin-panel__title">Reports by category</h3>
+  </div>
+  <div class="admin-panel__body">
+    {% if reports_by_category_err %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">Data unavailable</div>
+        <div class="admin-empty__body">The query failed.</div>
+      </div>
+    {% elif not reports_by_category %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">No reports in this range</div>
+        <div class="admin-empty__body">
+          Adjust the date range to see report category counts.
+        </div>
+      </div>
+    {% else %}
+      <table class="admin-table">
+        <thead>
+          <tr><th>Category</th><th style="text-align: right;">Reports</th></tr>
+        </thead>
+        <tbody>
+          {% for key, count in reports_by_category %}
+            <tr>
+              <td>{{ key.replace('_', ' ')|title }}</td>
+              <td style="text-align: right;">{{ count }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+</section>
+
+{# Reports by status #}
+<section class="admin-panel" style="margin-top: var(--sp-4);">
+  <div class="admin-panel__head">
+    <h3 class="admin-panel__title">Reports by status</h3>
+  </div>
+  <div class="admin-panel__body">
+    {% if reports_status_err %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">Data unavailable</div>
+        <div class="admin-empty__body">The query failed.</div>
+      </div>
+    {% else %}
+      <table class="admin-table">
+        <thead>
+          <tr><th>Status</th><th style="text-align: right;">Reports</th></tr>
+        </thead>
+        <tbody>
+          {% for row in reports_by_status %}
+            <tr>
+              <td>{{ row.status }}</td>
+              <td style="text-align: right;">
+                {% if row.count %}
+                  {{ row.count }}
+                {% else %}
+                  <span class="muted">0</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+</section>
+
+{# Locations by category #}
+<section class="admin-panel" style="margin-top: var(--sp-4);">
+  <div class="admin-panel__head">
+    <h3 class="admin-panel__title">Locations by category</h3>
+  </div>
+  <div class="admin-panel__body">
+    {% if locations_by_category_err %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">Data unavailable</div>
+        <div class="admin-empty__body">The query failed.</div>
+      </div>
+    {% elif not locations_by_category %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">No locations in this range</div>
+        <div class="admin-empty__body">
+          Adjust the date range to see location category counts.
+        </div>
+      </div>
+    {% else %}
+      <table class="admin-table">
+        <thead>
+          <tr><th>Category</th><th style="text-align: right;">Locations</th></tr>
+        </thead>
+        <tbody>
+          {% for key, count in locations_by_category %}
+            <tr>
+              <td>{{ key.replace('_', ' ')|title }}</td>
+              <td style="text-align: right;">{{ count }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+</section>
+
+{# Locations by source #}
+<section class="admin-panel" style="margin-top: var(--sp-4);">
+  <div class="admin-panel__head">
+    <h3 class="admin-panel__title">Locations by source</h3>
+  </div>
+  <div class="admin-panel__body">
+    {% if locations_source_err %}
+      <div class="admin-empty">
+        <div class="admin-empty__title">Data unavailable</div>
+        <div class="admin-empty__body">The query failed.</div>
+      </div>
+    {% else %}
+      <table class="admin-table">
+        <thead>
+          <tr><th>Source</th><th style="text-align: right;">Locations</th></tr>
+        </thead>
+        <tbody>
+          {% for row in locations_by_source %}
+            <tr>
+              <td>
+                {% if row.source == 'student' %}
+                  Student submission
+                {% elif row.source == 'admin' %}
+                  Admin entry
+                {% else %}
+                  {{ row.source }}
+                {% endif %}
+              </td>
+              <td style="text-align: right;">
+                {% if row.count %}
+                  {{ row.count }}
+                {% else %}
+                  <span class="muted">0</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+</section>
+
+{# ── Section 4 — Moderation throughput ────────────────── #}
+<h2 class="admin-section-title">Moderation throughput</h2>
+<section class="admin-stat-grid">
+  <div class="admin-stat">
+    <div class="admin-stat__label">Suggestions approved</div>
+    {% if suggestions_approved_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% else %}
+      <div class="admin-stat__value">{{ suggestions_approved }}</div>
+    {% endif %}
+  </div>
+
+  <div class="admin-stat">
+    <div class="admin-stat__label">Suggestions rejected</div>
+    {% if suggestions_rejected_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% else %}
+      <div class="admin-stat__value">{{ suggestions_rejected }}</div>
+    {% endif %}
+  </div>
+
+  <div class="admin-stat">
+    <div class="admin-stat__label">Reports moderated</div>
+    {% if pulse_moderations_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% else %}
+      <div class="admin-stat__value">{{ pulse_moderations }}</div>
+      <div class="admin-stat__sub">Hide / remove / restore actions</div>
+    {% endif %}
+  </div>
+
+  <div class="admin-stat">
+    <div class="admin-stat__label">Users moderated</div>
+    {% if user_moderations_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% else %}
+      <div class="admin-stat__value">{{ user_moderations }}</div>
+      <div class="admin-stat__sub">Suspend / restore actions</div>
+    {% endif %}
+  </div>
+
+  <div class="admin-stat">
+    <div class="admin-stat__label">Avg time to moderate</div>
+    {% if avg_ttm_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% elif avg_ttm_seconds is none %}
+      <div class="admin-stat__value">—</div>
+      <div class="admin-stat__sub">No moderations in range</div>
+    {% elif avg_ttm_seconds < 3600 %}
+      <div class="admin-stat__value">{{ (avg_ttm_seconds / 60)|round(0)|int }} min</div>
+      <div class="admin-stat__sub">Suggestions only</div>
+    {% elif avg_ttm_seconds < 86400 %}
+      <div class="admin-stat__value">{{ (avg_ttm_seconds / 3600)|round(1) }} h</div>
+      <div class="admin-stat__sub">Suggestions only</div>
+    {% else %}
+      <div class="admin-stat__value">{{ (avg_ttm_seconds / 86400)|round(1) }} d</div>
+      <div class="admin-stat__sub">Suggestions only</div>
+    {% endif %}
+  </div>
+
+  <div class="admin-stat">
+    <div class="admin-stat__label">Read rate</div>
+    {% if read_rate_err %}
+      <div class="admin-stat__value admin-stat__value--error">—</div>
+      <div class="admin-stat__sub">Unavailable</div>
+    {% elif read_rate_pct is none %}
+      <div class="admin-stat__value">—</div>
+      <div class="admin-stat__sub">No notifications in range</div>
+    {% else %}
+      <div class="admin-stat__value">{{ read_rate_pct }}%</div>
+      <div class="admin-stat__sub">
+        {{ notifications_read }} of {{ notifications_total }} read
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}
