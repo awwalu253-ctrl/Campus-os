@@ -111,3 +111,26 @@
 .cos-marker[data-name=""]::after {
   display: none;
 } 
+
+
+/* ═══════════════════════════════════════════════════════
+   Map status line
+   ─────────────────────────────────────────────────────
+   Rendered between the toolbar and the map canvas.
+   Populated by map.js after each refresh: filter result
+   counts, "no results" messages, or fetch errors.
+   Hidden by default via the HTML `hidden` attribute;
+   map.js un-hides it when there's a message to show.
+   ═══════════════════════════════════════════════════════ */
+
+.map-status {
+  padding: var(--sp-2) var(--sp-4);
+  font-size: var(--fs-sm);
+  color: var(--color-text-2);
+  background: var(--color-bg-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.map-status[hidden] {
+  display: none;
+}

@@ -378,3 +378,97 @@ def test_campus_isolation_preserved(app, client):
     names = [loc["name"] for loc in data["locations"]]
     assert "Location On A" in names
     assert "Location On B" not in names
+
+
+
+# ══════════════════════════════════════════════════════════
+# Phase 3.6 — Map search status line
+# ══════════════════════════════════════════════════════════
+#
+# The status line is a small empty <div> inside the map branch,
+# hidden by default, populated by map.js at runtime. These tests
+# verify the server-rendered structural invariants:
+#
+#   1. When the map renders, the status element is present.
+#   2. When the Phase 3.4 empty state renders, the status element
+#      is absent (the whole map branch is skipped).
+#   3. The element carries role="status" and aria-live="polite".
+#   4. The element starts hidden so the browser doesn't announce
+#      empty content on page load.
+#
+# JS behaviour (populating the line, pluralisation, error state)
+# is verified manually — this project has no JS test harness.
+
+def test_map_status_element_present_when_map_rendered(app, client, unilag_student):
+    _login(client, unilag_student)
+    r = client.get("/map/")
+    assert r.status_code == 200
+
+    body = r.data
+    # The status element is emitted.
+    assert b'id="map-status"' in body
+    assert b'class="map-status"' in body
+
+
+def test_map_status_absent_when_empty_state_shown(app, client):
+    """Phase 3.4 empty state replaces the entire map UI, so the
+    status element must NOT appear on that page."""
+    ctx = _make_student_with_scenario(
+        app,
+        uni_slug="status-empty",
+        campus_slug="main",
+        lat=None, lng=None,
+        with_location=False,
+    )
+    _login(client, ctx["user_id"])
+    r = client.get("/map/")
+    assert r.status_code == 200
+
+    body = r.data
+    # Empty state rendered — no map branch.
+    assert b"Map data isn't available for this campus yet." in body
+    # Status element absent.
+    assert b'id="map-status"' not in body
+
+
+def test_map_status_has_aria_attributes(app, client, unilag_student):
+    _login(client, unilag_student)
+    r = client.get("/map/")
+    assert r.status_code == 200
+
+    body = r.data
+    # The element must declare its role and live-region behaviour
+    # so screen readers announce updates politely.
+    assert b'role="status"' in body
+    assert b'aria-live="polite"' in body
+
+
+def test_map_status_hidden_on_initial_render(app, client, unilag_student):
+    """The status element must carry the `hidden` attribute in the
+    server-rendered HTML. Otherwise an empty grey row flashes before
+    map.js populates it (or never populates it, if there are no
+    filters and the marker count is above zero)."""
+    _login(client, unilag_student)
+    r = client.get("/map/")
+    assert r.status_code == 200
+
+    body = r.data
+    # Locate the element opening tag and confirm `hidden` is inside it.
+    # The template emits the attributes on multiple lines:
+    #   <div
+    #     id="map-status"
+    #     class="map-status"
+    #     role="status"
+    #     aria-live="polite"
+    #     hidden
+    #   ></div>
+    # So we assert that `hidden` appears after `id="map-status"` and
+    # before the closing `>` of that element.
+    marker = b'id="map-status"'
+    start = body.index(marker)
+    end = body.index(b'>', start)
+    segment = body[start:end]
+    assert b'hidden' in segment, (
+        "map-status element must start hidden; got: "
+        + segment.decode("utf-8", errors="replace")
+    )

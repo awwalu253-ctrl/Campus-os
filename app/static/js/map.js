@@ -143,9 +143,56 @@
         })[c]);
     }
 
+    // ── Status line ────────────────────────────────────
+    // Shows a short message between the toolbar and the map:
+    //   - count of matching locations when filters are active
+    //   - "no matches" message when filters are active and count is 0
+    //   - "no locations on this campus yet" when no filters and count is 0
+    //   - fetch error message when a refresh fails
+    // The element is server-rendered (hidden); this code populates its
+    // text and toggles visibility.
+
+    function updateStatus(count) {
+        const el = document.getElementById('map-status');
+        if (!el) return;
+
+        const q = (document.getElementById('map-search')?.value || '').trim();
+        const cat = (document.getElementById('map-category')?.value || '').trim();
+        const hasFilters = q.length > 0 || cat.length > 0;
+
+        let text = '';
+
+        if (count > 0 && hasFilters) {
+            text = count === 1
+                ? '1 location matches your search.'
+                : `${count} locations match your search.`;
+        } else if (count === 0 && hasFilters) {
+            text = 'No locations match your search. Try a different term.';
+        } else if (count === 0 && !hasFilters) {
+            text = 'No locations on this campus yet.';
+        }
+        // count > 0 && !hasFilters → no message (the map itself shows the markers).
+
+        if (text) {
+            el.textContent = text;
+            el.hidden = false;
+        } else {
+            el.textContent = '';
+            el.hidden = true;
+        }
+    }
+
+    function updateStatusError() {
+        const el = document.getElementById('map-status');
+        if (!el) return;
+        el.textContent = "Couldn't load locations. Retrying…";
+        el.hidden = false;
+    }
+
     async function refresh() {
         const [locs, reports] = await Promise.all([loadLocations(), loadPulse()]);
         renderMarkers(locs, reports);
+        updateStatus(locs.length);
     }
 
     map.on('load', refresh);
@@ -220,11 +267,20 @@
         }
 
         refreshInFlight = true;
+
+        // Clear any stale status while the fetch is in flight.
+        const statusEl = document.getElementById('map-status');
+        if (statusEl) {
+            statusEl.hidden = true;
+            statusEl.textContent = '';
+        }
+
         _refreshOnce()
             .catch((err) => {
                 // Swallow network errors — the previous marker set stays
                 // visible. The next tick will retry.
                 console.warn('map refresh failed', err);
+                updateStatusError();
             })
             .finally(() => {
                 refreshInFlight = false;

@@ -28,6 +28,14 @@
     <a class="btn btn--ghost" href="{{ url_for('maps.suggest') }}">+ Suggest</a>
   </div>
 
+  <div
+    id="map-status"
+    class="map-status"
+    role="status"
+    aria-live="polite"
+    hidden
+  ></div>
+
   <div id="map" class="map-canvas" data-mapbox-token="{{ MAPBOX_TOKEN }}"></div>
 
   <div class="map-legend">
