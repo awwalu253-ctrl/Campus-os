@@ -1,3 +1,4 @@
+{# app/templates/pages/map/index.html #}
 {% extends "layouts/app_shell.html" %}
 {% block title %}Map{% endblock %}
 {% block head %}
@@ -29,7 +30,9 @@
     mapboxToken: {{ MAPBOX_TOKEN|tojson }},
     apiLocations: "{{ url_for('maps.api_locations') }}",
     apiPulse: "{{ url_for('maps.api_pulse') }}",
-    suggestUrl: "{{ url_for('maps.suggest') }}"
+    suggestUrl: "{{ url_for('maps.suggest') }}",
+    campusLat: {{ (campus_lat if campus_lat is not none else 'null')|safe }},
+    campusLng: {{ (campus_lng if campus_lng is not none else 'null')|safe }}
   };
 </script>
 <script src="{{ url_for('static', filename='js/map.js') }}" defer></script>

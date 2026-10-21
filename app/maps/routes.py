@@ -72,9 +72,19 @@ def index():
         flash("Complete your campus setup first.", "info")
         return redirect(url_for("universities.onboarding"))
 
+    # Resolve the campus's coordinates for map centering.
+    # These columns were added in Phase 3.3 and may be NULL for
+    # campuses whose coordinates are not yet verified.
+    from app.models import Campus
+    campus = db.session.get(Campus, campus_id)
+    campus_lat = campus.lat if campus else None
+    campus_lng = campus.lng if campus else None
+
     return render_template(
         "pages/map/index.html",
         categories=loc_cats.all_categories(),
+        campus_lat=campus_lat,
+        campus_lng=campus_lng,
     )
 
 

@@ -11,14 +11,37 @@
 
     mapboxgl.accessToken = cfg.mapboxToken;
 
-    // UNILORIN Main Campus default center
-    const DEFAULT_CENTER = [4.6736, 8.4826];
+    // TEMPORARY FALLBACK: UNILORIN Main Campus center.
+    //
+    // Used only when the selected campus has no lat/lng coordinates yet
+    // (Phase 3.3 added nullable coordinate columns; campuses without
+    // verified coordinates are NULL). A follow-up phase should provide
+    // per-campus defaults or a "no data yet" message instead of silently
+    // centering on an unrelated campus.
+    //
+    // Order is [lng, lat] — Mapbox's center convention.
+    const FALLBACK_CENTER = [4.6736, 8.4826];
     const DEFAULT_ZOOM = 15;
+
+    // Prefer the current campus's verified coordinates when present.
+    // Any missing/invalid value triggers the fallback.
+    function resolveInitialCenter() {
+        const lat = cfg.campusLat;
+        const lng = cfg.campusLng;
+        if (
+            typeof lat === 'number' && typeof lng === 'number' &&
+            Number.isFinite(lat) && Number.isFinite(lng) &&
+            lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180
+        ) {
+            return [lng, lat];  // Mapbox expects [lng, lat]
+        }
+        return FALLBACK_CENTER;
+    }
 
     const map = new mapboxgl.Map({
         container: 'map',
         style: 'mapbox://styles/mapbox/streets-v12',
-        center: DEFAULT_CENTER,
+        center: resolveInitialCenter(),
         zoom: DEFAULT_ZOOM,
         attributionControl: true,
     });

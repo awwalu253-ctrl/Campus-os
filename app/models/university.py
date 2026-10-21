@@ -23,6 +23,8 @@ class Campus(UUIDMixin, TimestampMixin, db.Model):
                               nullable=False, index=True)
     slug = db.Column(db.String(64), nullable=False)
     name = db.Column(db.String(160), nullable=False)
+    lat = db.Column(db.Float, nullable=True)
+    lng = db.Column(db.Float, nullable=True)
 
     university = db.relationship("University", back_populates="campuses")
     faculties = db.relationship("Faculty", back_populates="campus",

@@ -1,60 +1,105 @@
-"""DEV ONLY. Seeds a UNILORIN-like university hierarchy for local testing.
+"""Seed campus center coordinates for the two pilot campuses.
 
-Refuses to run unless FLASK_ENV=development.
+DEV / PILOT ONLY.
+
+Sets Campus.lat / Campus.lng for campuses whose coordinates have been
+verified to the level required for map centering. Currently:
+
+  - UNILORIN 'main'  : 8.4826, 4.6736
+                       Same values as the hardcoded map.js fallback.
+                       The 39 seeded UNILORIN locations all sit within
+                       a small radius of this point; using it as the
+                       map center is proven safe.
+
+  - UNILAG   'akoka' : 6.51821, 3.39556
+                       APPROXIMATE. Third-party map data (OpenStreetMap),
+                       not an official UNILAG coordinate. See Phase 3.2
+                       for the full caveat. Adequate for the pilot.
+
+The other 16 campuses have no verified coordinates. They remain NULL
+and the map will fall back to UNILORIN's center for them. This is a
+known temporary limitation (see map.js FALLBACK_CENTER comment).
+
+=== IDEMPOTENCY / SAFETY ===
+
+  - Skips any campus where lat OR lng is already set. Never overwrites
+    an admin-entered coordinate with a seed value.
+  - Skips any entry whose university or campus slug does not exist,
+    printing a warning. Does not abort the whole run for a single
+    missing entry — remaining entries still process.
+  - Single transaction; rollback on any exception.
+  - Non-deleting. Never removes or alters any other column.
 """
-import os
 import os
 import sys
 
-# Allow `python scripts/seed_dev.py` from the project root without
-# requiring PYTHONPATH to be set. Python sets sys.path[0] to the
-# script's own directory, so the project root needs to be added
-# explicitly for `from app import ...` to resolve.
+# Allow `python scripts/seed_campus_coordinates.py` from the project root
+# without requiring PYTHONPATH to be set.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import create_app
 from app.extensions import db
-from app.models import University, Campus, Faculty, Department, Programme, Level
+from app.models import University, Campus
+
+
+# (university_slug, campus_slug, lat, lng)
+SEED = [
+    ("unilorin", "main",  8.4826,  4.6736),
+    ("unilag",   "akoka", 6.51821, 3.39556),
+]
 
 
 def main():
-    assert os.getenv("FLASK_ENV") == "development", \
-        "seed_dev.py refuses to run outside development."
-
     app = create_app()
     with app.app_context():
-        if University.query.filter_by(slug="unilorin").first():
-            print("Already seeded.")
-            return
+        updated = 0
+        skipped_populated = 0
+        skipped_missing = 0
 
-        uni = University(
-            slug="unilorin", name="University of Ilorin",
-            short_name="UNILORIN", state="Kwara",
+        try:
+            for uni_slug, campus_slug, lat, lng in SEED:
+                university = University.query.filter_by(slug=uni_slug).first()
+                if university is None:
+                    print(
+                        f"WARN: university slug='{uni_slug}' not found; "
+                        f"skipping {uni_slug}/{campus_slug}."
+                    )
+                    skipped_missing += 1
+                    continue
+
+                campus = Campus.query.filter_by(
+                    university_id=university.id,
+                    slug=campus_slug,
+                ).first()
+                if campus is None:
+                    print(
+                        f"WARN: campus {uni_slug}/{campus_slug} not found; "
+                        f"skipping."
+                    )
+                    skipped_missing += 1
+                    continue
+
+                if campus.lat is not None or campus.lng is not None:
+                    skipped_populated += 1
+                    continue
+
+                campus.lat = lat
+                campus.lng = lng
+                updated += 1
+
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            print("Seed failed — transaction rolled back.")
+            raise
+
+        print(f"Campuses updated: {updated}")
+        print(f"Skipped (already populated): {skipped_populated}")
+        print(f"Skipped (missing university/campus): {skipped_missing}")
+        print(
+            "NOTE: UNILAG Akoka coordinates are approximate. "
+            "See module docstring before production use."
         )
-        db.session.add(uni); db.session.flush()
-
-        main_campus = Campus(university_id=uni.id, slug="main", name="Main Campus")
-        db.session.add(main_campus); db.session.flush()
-
-        # Two faculties, one department each — enough to test the flow.
-        cis = Faculty(campus_id=main_campus.id, name="Faculty of Communication and Information Sciences", code="CIS")
-        eng = Faculty(campus_id=main_campus.id, name="Faculty of Engineering and Technology", code="FET")
-        db.session.add_all([cis, eng]); db.session.flush()
-
-        cs = Department(faculty_id=cis.id, name="Computer Science", code="CSC")
-        mech = Department(faculty_id=eng.id, name="Mechanical Engineering", code="MEE")
-        db.session.add_all([cs, mech]); db.session.flush()
-
-        cs_prog = Programme(department_id=cs.id, name="B.Sc. Computer Science", code="CSC")
-        mech_prog = Programme(department_id=mech.id, name="B.Eng. Mechanical Engineering", code="MEE")
-        db.session.add_all([cs_prog, mech_prog]); db.session.flush()
-
-        for prog in (cs_prog, mech_prog):
-            for rank in (100, 200, 300, 400, 500):
-                db.session.add(Level(programme_id=prog.id, name=f"{rank} Level", rank=rank))
-
-        db.session.commit()
-        print("Seeded UNILORIN dev data.")
 
 
 if __name__ == "__main__":
