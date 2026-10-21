@@ -10,7 +10,30 @@ bp = Blueprint("users", __name__, url_prefix="/me")
 @bp.get("/profile")
 @login_required
 def profile():
-    return render_template("pages/users/profile.html")
+    """Profile page. Read-only display of the student's academic placement.
+
+    The university and campus are set during onboarding and are not
+    editable from this page. Both are shown as text (with the
+    university's state) so a student can confirm which campus their
+    account is attached to. Em dashes render when a value is missing.
+    """
+    university = None
+    campus = None
+
+    if current_user.profile:
+        from app.models import University, Campus
+
+        if current_user.profile.university_id:
+            university = db.session.get(University, current_user.profile.university_id)
+
+        if current_user.profile.campus_id:
+            campus = db.session.get(Campus, current_user.profile.campus_id)
+
+    return render_template(
+        "pages/users/profile.html",
+        university=university,
+        campus=campus,
+    )
 
 
 @bp.route("/profile/edit", methods=["GET", "POST"])

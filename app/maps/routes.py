@@ -80,11 +80,30 @@ def index():
     campus_lat = campus.lat if campus else None
     campus_lng = campus.lng if campus else None
 
+    # Determine whether the campus has any usable map data.
+    #
+    # "Usable map data" means either:
+    #   - the campus has center coordinates (lat/lng not NULL), OR
+    #   - the campus has at least one approved Location.
+    #
+    # The empty state is shown only when BOTH are absent. A campus with
+    # no coordinates but with approved locations still renders the map
+    # (currently with a fallback center — a documented limitation to be
+    # addressed in a future phase).
+    from app.maps.models import Location
+    has_approved_locations = (
+        db.session.query(Location.id)
+        .filter_by(campus_id=campus_id, status="approved")
+        .first()
+        is not None
+    )
+
     return render_template(
         "pages/map/index.html",
         categories=loc_cats.all_categories(),
         campus_lat=campus_lat,
         campus_lng=campus_lng,
+        has_approved_locations=has_approved_locations,
     )
 
 

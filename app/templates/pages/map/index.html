@@ -8,22 +8,47 @@
 {% endblock %}
 
 {% block content %}
-<div class="map-toolbar">
-  <input id="map-search" type="search" placeholder="Search locations..." autocomplete="off">
-  <select id="map-category">
-    <option value="">All categories</option>
-    {% for c in categories %}
-      <option value="{{ c.key }}">{{ c.label }}</option>
-    {% endfor %}
-  </select>
+
+{# Compute whether the campus has any usable map data. If neither
+   coordinates nor approved locations exist, we render an honest
+   empty state instead of a misleading map centered on UNILORIN. #}
+{% set has_coords = campus_lat is not none and campus_lng is not none %}
+{% set has_usable_data = has_coords or has_approved_locations %}
+
+{% if has_usable_data %}
+  {# ── Normal map layout ──────────────────────────────── #}
+  <div class="map-toolbar">
+    <input id="map-search" type="search" placeholder="Search locations..." autocomplete="off">
+    <select id="map-category">
+      <option value="">All categories</option>
+      {% for c in categories %}
+        <option value="{{ c.key }}">{{ c.label }}</option>
+      {% endfor %}
+    </select>
     <a class="btn btn--ghost" href="{{ url_for('maps.suggest') }}">+ Suggest</a>
-</div>
+  </div>
 
-<div id="map" class="map-canvas" data-mapbox-token="{{ MAPBOX_TOKEN }}"></div>
+  <div id="map" class="map-canvas" data-mapbox-token="{{ MAPBOX_TOKEN }}"></div>
 
-<div class="map-legend">
-  <label><input type="checkbox" id="toggle-pulse" checked> Show live Pulse</label>
-</div>
+  <div class="map-legend">
+    <label><input type="checkbox" id="toggle-pulse" checked> Show live Pulse</label>
+  </div>
+{% else %}
+  {# ── Empty state ───────────────────────────────────── #}
+  <div class="map-empty-state">
+    <div class="map-empty-state__inner">
+      <h2 class="map-empty-state__title">
+        Map data isn't available for this campus yet.
+      </h2>
+      <p class="map-empty-state__body">
+        Help build your campus map by suggesting a location.
+      </p>
+      <a class="btn btn--primary" href="{{ url_for('maps.suggest') }}">
+        Suggest a location
+      </a>
+    </div>
+  </div>
+{% endif %}
 
 <script>
   window.CAMPUS_OS = {
@@ -32,8 +57,11 @@
     apiPulse: "{{ url_for('maps.api_pulse') }}",
     suggestUrl: "{{ url_for('maps.suggest') }}",
     campusLat: {{ (campus_lat if campus_lat is not none else 'null')|safe }},
-    campusLng: {{ (campus_lng if campus_lng is not none else 'null')|safe }}
+    campusLng: {{ (campus_lng if campus_lng is not none else 'null')|safe }},
+    hasApprovedLocations: {{ 'true' if has_approved_locations else 'false' }}
   };
 </script>
+{% if has_usable_data %}
 <script src="{{ url_for('static', filename='js/map.js') }}" defer></script>
+{% endif %}
 {% endblock %}
