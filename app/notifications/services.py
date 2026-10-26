@@ -260,6 +260,7 @@ def serialize(n: Notification) -> dict:
 _PUSH_ELIGIBLE_TYPES = frozenset({
     ntypes.CAMPUS_SAFETY_REPORT,
     ntypes.REPORT_CONFIRMATION_MILESTONE,
+    ntypes.TASK_REMINDER,
 })
 
 

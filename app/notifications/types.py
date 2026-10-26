@@ -9,6 +9,9 @@ CAMPUS_SAFETY_REPORT = "campus_safety_report"
 LOCATION_SUGGESTION_APPROVED = "location_suggestion_approved"
 LOCATION_SUGGESTION_REJECTED = "location_suggestion_rejected"
 
+# ── Tasks ──────────────────────────────────────────────
+TASK_REMINDER = "task_reminder"
+
 
 # ── Confirmation milestone policy ─────────────────────
 CONFIRMATION_MILESTONES = frozenset({1, 5, 10, 25, 50})
@@ -43,6 +46,10 @@ REGISTRY = {
     LOCATION_SUGGESTION_REJECTED: {
         "label": "Location suggestion rejected",
         "category": "locations",
+    },
+    TASK_REMINDER: {
+        "label": "Task due soon",
+        "category": "tasks",
     },
 }
 
