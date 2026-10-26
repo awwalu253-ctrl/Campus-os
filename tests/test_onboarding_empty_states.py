@@ -245,7 +245,7 @@ def test_step6_shows_empty_state_when_programme_has_no_levels(
     body = r.data
     assert b"Level information not yet available" in body
     assert b"Back to programmes" in body
-    assert b'name="level_id"' not in body
+    assert b'type="radio" name="level_id"' not in body
 
 
 # ── Happy path tests (one per step) ───────────────────────

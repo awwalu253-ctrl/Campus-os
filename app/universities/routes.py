@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, request, jsonify
+from flask import Blueprint, render_template, redirect, url_for, request, jsonify, abort
 from flask_login import login_required, current_user
 
 from app.extensions import db
@@ -177,8 +177,28 @@ def set_level():
     kick = _kick_admins_to_dashboard()
     if kick:
         return kick
+
     profile = current_user.profile
-    profile.level_id = Level.query.get_or_404(request.form["level_id"]).id
+    level_id = (request.form.get("level_id") or "").strip()
+
+    if level_id:
+        # Normal selection — validate and assign. A non-empty but
+        # invalid id (bogus UUID or a UUID not matching a Level row)
+        # still returns 404, preserving the original strict behaviour
+        # for the populated-levels path.
+        #
+        # Uses db.session.get + explicit abort instead of
+        # Level.query.get_or_404: the latter internally calls the
+        # legacy Query.get() method and fires a SQLAlchemy 2.0
+        # LegacyAPIWarning.
+        level = db.session.get(Level, level_id)
+        if level is None:
+            abort(404)
+        profile.level_id = level.id
+    # else: explicit skip (empty or missing level_id). Preserve
+    # profile.level_id as-is — either None from a prior skip, or a
+    # previously-set value. The skip path never clears existing data.
+
     db.session.commit()
     return redirect(url_for("web.home"))
 
