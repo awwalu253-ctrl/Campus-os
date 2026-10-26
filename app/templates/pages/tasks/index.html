@@ -37,7 +37,25 @@
               {% endif %}
             </div>
           </div>
-          <a class="btn btn--ghost btn--sm" href="{{ url_for('tasks.edit', task_id=task.id) }}">Edit</a>
+          <div style="display: flex; gap: var(--sp-1); flex-wrap: wrap;">
+            {% if task.completed_at %}
+              <form method="post" action="{{ url_for('tasks.uncomplete', task_id=task.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn--ghost btn--sm">Reopen</button>
+              </form>
+            {% else %}
+              <form method="post" action="{{ url_for('tasks.complete', task_id=task.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn--ghost btn--sm">Complete</button>
+              </form>
+            {% endif %}
+            <a class="btn btn--ghost btn--sm" href="{{ url_for('tasks.edit', task_id=task.id) }}">Edit</a>
+            <form method="post" action="{{ url_for('tasks.delete', task_id=task.id) }}"
+                  data-confirm="Delete this task? This cannot be undone.">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn--ghost btn--sm" style="color: var(--color-danger);">Delete</button>
+            </form>
+          </div>
         </div>
       </li>
     {% endfor %}

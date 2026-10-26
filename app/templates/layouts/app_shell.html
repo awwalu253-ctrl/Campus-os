@@ -37,7 +37,8 @@
          class="sidebar__item {{ 'is-active' if request.endpoint and request.endpoint.startswith('pulse.') }}">
         {{ nav_icon('pulse') }}<span>Pulse</span>
       </a>
-      <a href="#" class="sidebar__item is-disabled" title="Coming soon">
+      <a href="{{ url_for('tasks.index') }}"
+         class="sidebar__item {{ 'is-active' if request.endpoint and request.endpoint.startswith('tasks.') }}">
         {{ nav_icon('tasks') }}<span>Tasks</span>
       </a>
       <a href="{{ url_for('users.profile') }}"
@@ -146,7 +147,8 @@
        class="bottom-nav__item {{ 'is-active' if request.endpoint and request.endpoint.startswith('pulse.') }}">
       {{ nav_icon('pulse') }}<span>Pulse</span>
     </a>
-    <a href="#" class="bottom-nav__item is-disabled" aria-disabled="true" title="Coming soon">
+    <a href="{{ url_for('tasks.index') }}"
+       class="bottom-nav__item {{ 'is-active' if request.endpoint and request.endpoint.startswith('tasks.') }}">
       {{ nav_icon('tasks') }}<span>Tasks</span>
     </a>
     <a href="{{ url_for('users.profile') }}"

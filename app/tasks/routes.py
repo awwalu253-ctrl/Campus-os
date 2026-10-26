@@ -13,6 +13,7 @@ from flask_login import current_user, login_required
 from app.extensions import db
 from app.tasks.forms import TaskForm
 from app.tasks.models import Task
+from datetime import datetime, timezone
 
 
 bp = Blueprint("tasks", __name__, url_prefix="/tasks")
@@ -78,12 +79,65 @@ def new():
     return render_template("pages/tasks/new.html", form=form)
 
 
-@bp.get("/<task_id>/edit")
+@bp.route("/<task_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit(task_id):
-    """Placeholder for Step 2's full edit implementation.
+    """Combined view and edit page for a single task.
 
-    Returns 404 for now — the real handler arrives in Step 2. This
-    placeholder exists so the Edit links in pages/tasks/index.html can
-    resolve during Step 1's tests without a BuildError."""
-    abort(404)
+    GET  → renders the form pre-populated with the task's current values.
+    POST → validates, updates, commits, redirects to the list.
+
+    Ownership is enforced by _get_owned_task: a task belonging to
+    another user is indistinguishable from a nonexistent one (404).
+    """
+    task = _get_owned_task(task_id)
+    form = TaskForm(obj=task)
+
+    if form.validate_on_submit():
+        task.title = form.title.data.strip()
+        task.description = (form.description.data or "").strip() or None
+        task.due_at = form.due_at.data
+        task.priority = form.priority.data
+        db.session.commit()
+        flash("Task updated.", "success")
+        return redirect(url_for("tasks.index"))
+
+    return render_template("pages/tasks/edit.html", form=form, task=task)
+
+
+
+@bp.post("/<task_id>/complete")
+@login_required
+def complete(task_id):
+    """Mark a task as complete. Idempotent — a second call for an
+    already-completed task leaves the original timestamp untouched."""
+    task = _get_owned_task(task_id)
+    if task.completed_at is None:
+        task.completed_at = datetime.now(timezone.utc)
+        db.session.commit()
+        flash("Task completed.", "success")
+    return redirect(url_for("tasks.index"))
+
+
+@bp.post("/<task_id>/uncomplete")
+@login_required
+def uncomplete(task_id):
+    """Reopen a completed task. Idempotent — a second call for an
+    already-pending task is a no-op."""
+    task = _get_owned_task(task_id)
+    if task.completed_at is not None:
+        task.completed_at = None
+        db.session.commit()
+        flash("Task reopened.", "success")
+    return redirect(url_for("tasks.index"))
+
+
+@bp.post("/<task_id>/delete")
+@login_required
+def delete(task_id):
+    """Permanently delete a task. No soft delete — the row is gone."""
+    task = _get_owned_task(task_id)
+    db.session.delete(task)
+    db.session.commit()
+    flash("Task deleted.", "info")
+    return redirect(url_for("tasks.index"))
