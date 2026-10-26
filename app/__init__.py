@@ -71,6 +71,7 @@ def create_app(config_name: str | None = None) -> Flask:
     from app.pulse import models as _pulse_models  # noqa: F401
     from app.maps import models as _maps_models  # noqa: F401
     from app.notifications import models as _notifications_models  # noqa: F401
+    from app.tasks import models as _tasks_models  # noqa: F401
 
     # ── Blueprints ──────────────────────────────────────
     from app.auth.routes import bp as auth_bp
