@@ -1,0 +1,47 @@
+{% extends "layouts/app_shell.html" %}
+{% block title %}Tasks{% endblock %}
+{% block content %}
+
+<header style="display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); margin-bottom: var(--sp-5);">
+  <h1 style="font-size: var(--fs-2xl); margin: 0;">Tasks</h1>
+  <a class="btn btn--primary" href="{{ url_for('tasks.new') }}">+ Add task</a>
+</header>
+
+{% if not tasks %}
+  <section class="card card--pad-lg" style="text-align: center;">
+    <p class="muted" style="margin: 0 0 var(--sp-3);">
+      You haven't added any tasks yet.
+    </p>
+    <a class="btn btn--primary" href="{{ url_for('tasks.new') }}">
+      Add your first task
+    </a>
+  </section>
+{% else %}
+  <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--sp-2);">
+    {% for task in tasks %}
+      <li class="card">
+        <div style="display: flex; align-items: center; gap: var(--sp-3);">
+          <div class="grow">
+            <div style="font-weight: 600;{% if task.completed_at %} text-decoration: line-through; color: var(--color-text-3);{% endif %}">
+              {{ task.title }}
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--sp-2); margin-top: 4px; font-size: var(--fs-xs); color: var(--color-text-2);">
+              <span class="pill pill--{{ 'red' if task.priority == 'high' else 'amber' if task.priority == 'medium' else 'neutral' }}">
+                {{ task.priority }}
+              </span>
+              {% if task.due_at %}
+                <span>Due {{ task.due_at.strftime('%Y-%m-%d') }}</span>
+              {% endif %}
+              {% if task.completed_at %}
+                <span>Completed {{ task.completed_at.strftime('%Y-%m-%d') }}</span>
+              {% endif %}
+            </div>
+          </div>
+          <a class="btn btn--ghost btn--sm" href="{{ url_for('tasks.edit', task_id=task.id) }}">Edit</a>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+{% endblock %}

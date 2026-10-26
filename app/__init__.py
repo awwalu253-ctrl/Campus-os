@@ -80,6 +80,7 @@ def create_app(config_name: str | None = None) -> Flask:
     from app.web.home import bp as home_bp
     from app.pwa.routes import bp as pwa_bp
     from app.admin.routes import bp as admin_bp
+    from app.tasks.routes import bp as tasks_bp
     from app.pulse.routes import bp as pulse_bp
     from app.maps.routes import bp as maps_bp
     from app.notifications.routes import bp as notifications_bp
@@ -91,6 +92,7 @@ def create_app(config_name: str | None = None) -> Flask:
     app.register_blueprint(home_bp)
     app.register_blueprint(pwa_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(tasks_bp)
     app.register_blueprint(pulse_bp)
     app.register_blueprint(maps_bp)
     app.register_blueprint(notifications_bp)

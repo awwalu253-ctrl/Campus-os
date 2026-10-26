@@ -1,0 +1,43 @@
+{% extends "layouts/app_shell.html" %}
+{% block title %}New task{% endblock %}
+{% block content %}
+
+<h1 style="font-size: var(--fs-2xl);">New task</h1>
+<p class="muted" style="margin-bottom: var(--sp-5);">Add a new task.</p>
+
+<section class="card card--pad-lg">
+  <form method="post" novalidate class="form">
+    {{ form.hidden_tag() }}
+
+    <label class="form__field">
+      <span>{{ form.title.label.text }}</span>
+      {{ form.title(placeholder="What needs to be done?") }}
+      {% for e in form.title.errors %}<small class="form__error">{{ e }}</small>{% endfor %}
+    </label>
+
+    <label class="form__field">
+      <span>{{ form.description.label.text }}</span>
+      {{ form.description(placeholder="Optional details") }}
+      {% for e in form.description.errors %}<small class="form__error">{{ e }}</small>{% endfor %}
+    </label>
+
+    <label class="form__field">
+      <span>{{ form.due_at.label.text }}</span>
+      {{ form.due_at() }}
+      {% for e in form.due_at.errors %}<small class="form__error">{{ e }}</small>{% endfor %}
+    </label>
+
+    <label class="form__field">
+      <span>{{ form.priority.label.text }}</span>
+      {{ form.priority() }}
+      {% for e in form.priority.errors %}<small class="form__error">{{ e }}</small>{% endfor %}
+    </label>
+
+    <div class="row" style="gap: var(--sp-2);">
+      <a class="btn btn--ghost" href="{{ url_for('tasks.index') }}">Cancel</a>
+      {{ form.submit(class="btn btn--primary") }}
+    </div>
+  </form>
+</section>
+
+{% endblock %}
