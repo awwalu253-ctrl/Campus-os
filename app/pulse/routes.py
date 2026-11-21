@@ -1,9 +1,14 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, abort
+from flask import (
+    Blueprint, render_template, redirect, url_for, flash,
+    request, abort, current_app,
+)
 from flask_login import login_required, current_user
 
 from app.extensions import db
 from app.pulse import categories, services
 from app.pulse.models import CampusReport
+from app.maps.models import Location
+from sqlalchemy import func, select
 
 bp = Blueprint("pulse", __name__, url_prefix="/pulse")
 
@@ -29,6 +34,56 @@ def _current_campus_id() -> str:
             return first.id
 
     return None
+
+
+def _get_unique_valid_general_campus_area(campus_id: str) -> Location | None:
+    """Return the single valid General Campus Area for this campus, or None.
+
+    "Valid" means:
+      - campus_id matches
+      - name == "General Campus Area"
+      - status == "approved"
+      - point is not NULL and not empty (ST_IsEmpty is false)
+
+    Duplicate handling:
+      - 0 valid matches  -> None (caller falls back to location_id=None)
+      - 1 valid match    -> that Location
+      - >1 valid matches -> None and log a warning; never pick arbitrarily,
+                            never delete, never modify.
+    """
+    rows = db.session.execute(
+        select(
+            Location.id,
+            Location.name,
+            func.ST_Y(Location.point).label("lat"),
+            func.ST_X(Location.point).label("lng"),
+            func.ST_IsEmpty(Location.point).label("is_empty"),
+        )
+        .where(Location.campus_id == campus_id)
+        .where(Location.name == "General Campus Area")
+        .where(Location.status == "approved")
+    ).all()
+
+    valid = [
+        row for row in rows
+        if row.lat is not None
+        and row.lng is not None
+        and not bool(row.is_empty)
+    ]
+
+    if len(valid) == 0:
+        return None
+
+    if len(valid) > 1:
+        current_app.logger.warning(
+            "Duplicate General Campus Area locations for campus %s: %s. "
+            "Leaving location_id=None; do not auto-select or modify.",
+            campus_id,
+            [str(row.id) for row in valid],
+        )
+        return None
+
+    return db.session.get(Location, valid[0].id)
 
 
 @bp.get("/")
@@ -65,6 +120,49 @@ def report_new():
             )
 
         location_id = request.form.get("location_id", "").strip() or None
+        user_supplied_location = location_id is not None
+
+        # Step 2: if the user didn't pick a location, default to the
+        # campus's General Campus Area (when provisioned and valid).
+        # Missing / duplicate / invalid GCA -> stays None (Decision A1).
+        # No coordinates invented. api_pulse() still filters out any
+        # legacy NULL-location reports (Decision B1, unchanged).
+        if location_id is None:
+            gc = _get_unique_valid_general_campus_area(campus_id)
+            if gc is not None:
+                location_id = gc.id
+
+        # Step 4: validate user-supplied location (not the Step 2 default).
+        if user_supplied_location:
+            loc = db.session.get(Location, location_id)
+            if (
+                loc is None
+                or loc.campus_id != campus_id
+                or loc.status != "approved"
+            ):
+                flash(
+                    "That location isn't available on your campus.",
+                    "error",
+                )
+                return render_template(
+                    "pages/pulse/report_new.html",
+                    categories_by_group=categories.groups(),
+                    preset_location_id="",
+                    available_locations=(
+                        Location.query
+                        .filter_by(campus_id=campus_id, status="approved")
+                        .order_by(Location.name)
+                        .all()
+                    ),
+                    general_campus_area_id=(
+                        _get_unique_valid_general_campus_area(campus_id).id
+                        if _get_unique_valid_general_campus_area(campus_id)
+                        else None
+                    ),
+                    form_category=category,
+                    form_description=description,
+                )
+
         report = services.create_report(
             user=current_user,
             campus_id=campus_id,
@@ -77,10 +175,31 @@ def report_new():
         return redirect(url_for("pulse.report_detail", report_id=report.id))
 
     # GET
+    from app.maps.models import Location as _Loc  # local alias, not needed at top
+    available_locations = (
+        _Loc.query
+        .filter_by(campus_id=campus_id, status="approved")
+        .order_by(_Loc.name)
+        .all()
+    )
+
+    gca = _get_unique_valid_general_campus_area(campus_id)
+    general_campus_area_id = gca.id if gca is not None else None
+
+    raw_preset = request.args.get("location_id", "").strip()
+    preset_location_id = ""
+    if raw_preset:
+        if general_campus_area_id and raw_preset == general_campus_area_id:
+            preset_location_id = raw_preset
+        elif any(loc.id == raw_preset for loc in available_locations):
+            preset_location_id = raw_preset
+
     return render_template(
         "pages/pulse/report_new.html",
         categories_by_group=categories.groups(),
-        preset_location_id=request.args.get("location_id", ""),
+        preset_location_id=preset_location_id,
+        available_locations=available_locations,
+        general_campus_area_id=general_campus_area_id,
     )
 
 

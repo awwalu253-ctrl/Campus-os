@@ -6,25 +6,87 @@
 
 <form method="post" class="form" style="margin-top: var(--sp-4);">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-  <input type="hidden" name="location_id" value="{{ preset_location_id }}">
 
   <label class="form__field">
     <span>Category</span>
     <select name="category" required>
-      <option value="" disabled selected>Pick a category</option>
+      <option value="" disabled
+        {% if not form_category %}selected{% endif %}>
+        Pick a category
+      </option>
       {% for group, items in categories_by_group.items() %}
         <optgroup label="{{ group }}">
           {% for c in items %}
-            <option value="{{ c.key }}">{{ c.label }}</option>
+            <option value="{{ c.key }}"
+              {% if form_category and c.key == form_category %}selected{% endif %}>
+              {{ c.label }}
+            </option>
           {% endfor %}
         </optgroup>
       {% endfor %}
     </select>
   </label>
 
+  {# ── Location selector ─────────────────────────────────────
+     Behavior:
+       - If a unique valid General Campus Area (GCA) exists for this
+         campus, it appears as "General campus area (approximate)"
+         and is selected by default when no valid preset overrides it.
+       - Specific approved locations on the current campus are shown
+         below the GCA (the GCA itself is not repeated).
+       - "No specific place" (value="") is always available. Step 2
+         still defaults an empty selection to the GCA on POST.
+       - A valid, campus-scoped, approved preset_location_id is
+         preselected. Invalid / cross-campus / unapproved / missing
+         presets are ignored (the backend already filters them out).
+     #}
+  <label class="form__field" for="location_id">
+    <span>Location</span>
+    <select name="location_id" id="location_id">
+      {% if general_campus_area_id %}
+        <option
+          value="{{ general_campus_area_id }}"
+          {% if preset_location_id == general_campus_area_id or (not preset_location_id and preset_location_id != '') or preset_location_id == '' and not general_campus_area_id == false %}
+          {% endif %}
+          {% if preset_location_id == general_campus_area_id %}
+            selected
+          {% elif not preset_location_id %}
+            selected
+          {% endif %}
+        >
+          General campus area (approximate)
+        </option>
+      {% endif %}
+
+      {% for loc in available_locations %}
+        {% if loc.id != general_campus_area_id %}
+          <option
+            value="{{ loc.id }}"
+            {% if preset_location_id == loc.id %}selected{% endif %}
+          >
+            {{ loc.name }}
+          </option>
+        {% endif %}
+      {% endfor %}
+
+      <option
+        value=""
+        {% if preset_location_id == '' and not general_campus_area_id %}selected{% endif %}
+      >
+        No specific place
+      </option>
+    </select>
+    <small class="muted" style="display:block; margin-top: var(--sp-1);">
+      Reports are anchored to the selected map location.
+      The general campus area is approximate and is used when you
+      don't pick a specific building.
+    </small>
+  </label>
+
   <label class="form__field">
     <span>Description (optional)</span>
-    <input name="description" maxlength="500" placeholder="Add a short detail">
+    <input name="description" maxlength="500" placeholder="Add a short detail"
+           value="{{ form_description or '' }}">
   </label>
 
   <button type="submit" class="btn btn--primary btn--block">Post report</button>
