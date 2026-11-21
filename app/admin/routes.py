@@ -2452,6 +2452,8 @@ def run_seed():
     from flask import current_app
     from app.extensions import db
     from app.models import University, Campus, Faculty, Department, Programme, Level
+    from app.maps.models import Location
+    from geoalchemy2.elements import WKTElement
     
     # Simple security check so only you can run it
     secret = request.args.get("key")
@@ -2459,39 +2461,54 @@ def run_seed():
         abort(404)
 
     try:
-        if University.query.filter_by(slug="unilorin").first():
-            return "Database is already seeded.", 200
+        uni = University.query.filter_by(slug="unilorin").first()
+        if not uni:
+            return "Run the first seed script first (university is missing).", 400
 
-        uni = University(
-            slug="unilorin", name="University of Ilorin",
-            short_name="UNILORIN", state="Kwara",
-        )
-        db.session.add(uni); db.session.flush()
+        campus = Campus.query.filter_by(university_id=uni.id).first()
+        if not campus:
+            return "Campus missing.", 400
 
-        main_campus = Campus(university_id=uni.id, slug="main", name="Main Campus")
-        db.session.add(main_campus); db.session.flush()
+        # Check if locations already exist to prevent duplicates
+        if Location.query.filter_by(campus_id=campus.id).first():
+            return "Locations already seeded for this campus.", 200
 
-        # Two faculties, one department each — enough to test the flow.
-        cis = Faculty(campus_id=main_campus.id, name="Faculty of Communication and Information Sciences", code="CIS")
-        eng = Faculty(campus_id=main_campus.id, name="Faculty of Engineering and Technology", code="FET")
-        db.session.add_all([cis, eng]); db.session.flush()
-
-        cs = Department(faculty_id=cis.id, name="Computer Science", code="CSC")
-        mech = Department(faculty_id=eng.id, name="Mechanical Engineering", code="MEE")
-        db.session.add_all([cs, mech]); db.session.flush()
-
-        cs_prog = Programme(department_id=cs.id, name="B.Sc. Computer Science", code="CSC")
-        mech_prog = Programme(department_id=mech.id, name="B.Eng. Mechanical Engineering", code="MEE")
-        db.session.add_all([cs_prog, mech_prog]); db.session.flush()
-
-        for prog in (cs_prog, mech_prog):
-            for rank in (100, 200, 300, 400, 500):
-                db.session.add(Level(programme_id=prog.id, name=f"{rank} Level", rank=rank))
-
+        # Add some test map locations (Point uses long, lat format)
+        locations = [
+            Location(
+                campus_id=campus.id,
+                name="Main Library",
+                category="academic",
+                description="The central library.",
+                point=WKTElement('POINT(8.4980 8.4920)', srid=4326),
+                status="approved",
+                source="admin"
+            ),
+            Location(
+                campus_id=campus.id,
+                name="Student Union Building",
+                category="social",
+                description="Where student activities happen.",
+                point=WKTElement('POINT(8.4995 8.4935)', srid=4326),
+                status="approved",
+                source="admin"
+            ),
+            Location(
+                campus_id=campus.id,
+                name="Faculty of Engineering",
+                category="academic",
+                description="Engineering complex.",
+                point=WKTElement('POINT(8.4970 8.4910)', srid=4326),
+                status="approved",
+                source="admin"
+            )
+        ]
+        
+        db.session.add_all(locations)
         db.session.commit()
-        return "Seed executed successfully! Database is now populated.", 200
+        return "Map locations seeded successfully! Go check the map.", 200
     except Exception as e:
         db.session.rollback()
-        current_app.logger.exception("Seeding failed")
+        current_app.logger.exception("Seeding locations failed")
         return f"Seeding failed: {str(e)}", 500
 # --- END TEMPORARY SEED ROUTE ---
