@@ -2445,3 +2445,33 @@ def health():
         audit_count_24h=audit_count_24h,
         audit_count_24h_err=audit_count_24h_err,
     )
+
+# --- TEMPORARY SEED ROUTE - REMOVE AFTER USE ---
+@bp.get("/run-seed")
+def run_seed():
+    from flask import current_app
+    import os
+    
+    # Simple security check so only you can run it
+    secret = request.args.get("key")
+    if secret != "campus-os-seed-2026": 
+        abort(404)
+
+    try:
+        # Import and run your existing seed logic
+        from scripts import seed_dev
+        
+        # Check if the seed script has a main function or runs on import
+        if hasattr(seed_dev, 'main'):
+            seed_dev.main()
+        else:
+            # If it runs on import, it might need a subprocess or we just rely on the import
+            # This is the most common pattern
+            import subprocess
+            subprocess.run(["python", "-m", "scripts.seed_dev"], check=True)
+            
+        return "Seed script executed successfully! Check your database.", 200
+    except Exception as e:
+        current_app.logger.exception("Seeding failed")
+        return f"Seeding failed: {str(e)}", 500
+# --- END TEMPORARY SEED ROUTE ---
