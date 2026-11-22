@@ -4,6 +4,7 @@
 {% block head %}
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.css" rel="stylesheet">
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.js"></script>
+  <script src="{{ url_for('static', filename='js/vendor/supercluster.min.js') }}" defer></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/map.css') }}">
 {% endblock %}
 

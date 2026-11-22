@@ -1,5 +1,7 @@
 /* Campus OS — Mapbox GL map layer.
-   Vanilla JS, no framework. */
+   Vanilla JS, no framework.
+   Phase 3: Supercluster-based clustering for campus locations.
+   Pulse markers remain un-clustered and rendered exactly as before. */
 (function () {
     const cfg = window.CAMPUS_OS;
     const container = document.getElementById('map');
@@ -11,20 +13,9 @@
 
     mapboxgl.accessToken = cfg.mapboxToken;
 
-    // TEMPORARY FALLBACK: UNILORIN Main Campus center.
-    //
-    // Used only when the selected campus has no lat/lng coordinates yet
-    // (Phase 3.3 added nullable coordinate columns; campuses without
-    // verified coordinates are NULL). A follow-up phase should provide
-    // per-campus defaults or a "no data yet" message instead of silently
-    // centering on an unrelated campus.
-    //
-    // Order is [lng, lat] — Mapbox's center convention.
     const FALLBACK_CENTER = [4.6736, 8.4826];
     const DEFAULT_ZOOM = 15;
 
-    // Prefer the current campus's verified coordinates when present.
-    // Any missing/invalid value triggers the fallback.
     function resolveInitialCenter() {
         const lat = cfg.campusLat;
         const lng = cfg.campusLng;
@@ -33,7 +24,7 @@
             Number.isFinite(lat) && Number.isFinite(lng) &&
             lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180
         ) {
-            return [lng, lat];  // Mapbox expects [lng, lat]
+            return [lng, lat];
         }
         return FALLBACK_CENTER;
     }
@@ -53,14 +44,24 @@
 
     const popup = new mapboxgl.Popup({ closeButton: true, offset: 12 });
 
-    // ── Locations layer ────────────────────────────────
+    // ── Search / filter state ──────────────────────────
+    function currentSearch() {
+        return (document.getElementById('map-search')?.value || '').trim();
+    }
+    function currentCategory() {
+        return (document.getElementById('map-category')?.value || '').trim();
+    }
+    function filtersActive() {
+        return currentSearch().length > 0 || currentCategory().length > 0;
+    }
+
+    // ── Data loading (unchanged endpoints) ─────────────
     async function loadLocations() {
-        const cat = document.getElementById('map-category')?.value || '';
-        const q = document.getElementById('map-search')?.value || '';
+        const cat = currentCategory();
+        const q = currentSearch();
         const url = new URL(cfg.apiLocations, window.location.origin);
         if (cat) url.searchParams.set('category', cat);
         if (q) url.searchParams.set('q', q);
-
         const res = await fetch(url, { credentials: 'same-origin' });
         const data = await res.json();
         return data.locations || [];
@@ -73,95 +74,215 @@
         return data.reports || [];
     }
 
-    function renderMarkers(locations, reports) {
-        // Clear previous
-        document.querySelectorAll('.cos-marker').forEach(el => el.remove());
-
-        locations.forEach(loc => {
-            if (loc.lat == null || loc.lng == null) return;
-            const el = document.createElement('div');
-            el.className = 'cos-marker';
-            el.style.cssText = 'width:14px;height:14px;border-radius:50%;background:#243B6B;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.3);cursor:pointer;';
-            // data-name is read by the CSS tooltip. We deliberately avoid
-            // `title` so the OS tooltip doesn't compete with our styled one.
-            el.dataset.name = loc.name;
-            // Focusable so keyboard users can tab to markers.
-            el.tabIndex = 0;
-            el.setAttribute('role', 'button');
-            el.setAttribute('aria-label', loc.name);
-
-            const openPopup = () => {
-                const detailUrl = '/map/location/' + loc.id;
-                popup.setLngLat([loc.lng, loc.lat]).setHTML(
-                    '<strong>' + escapeHtml(loc.name) + '</strong><br>' +
-                    '<small>' + escapeHtml(loc.category) + '</small>' +
-                    (loc.description ? '<br>' + escapeHtml(loc.description) : '') +
-                    '<br><a href="' + detailUrl + '">Open details</a>'
-                ).addTo(map);
-            };
-
-            new mapboxgl.Marker(el)
-                .setLngLat([loc.lng, loc.lat])
-                .addTo(map)
-                .getElement().addEventListener('click', openPopup);
-
-            // Keyboard equivalent of clicking: Enter or Space opens the popup.
-            el.addEventListener('keydown', (ev) => {
-                if (ev.key === 'Enter' || ev.key === ' ') {
-                    ev.preventDefault();
-                    openPopup();
-                }
-            });
-        });
-
-        const showPulse = document.getElementById('toggle-pulse')?.checked;
-        if (!showPulse) return;
-
-        reports.forEach(r => {
-            if (r.lat == null || r.lng == null) return;
-            const el = document.createElement('div');
-            el.className = 'cos-marker';
-            el.style.cssText = 'width:12px;height:12px;border-radius:50%;background:#19C3E6;border:2px solid #fff;cursor:pointer;';
-            el.title = r.category;
-
-            new mapboxgl.Marker(el)
-                .setLngLat([r.lng, r.lat])
-                .addTo(map)
-                .getElement().addEventListener('click', () => {
-                    popup.setLngLat([r.lng, r.lat]).setHTML(
-                        '<strong>' + escapeHtml(r.category.replace(/_/g, ' ')) + '</strong><br>' +
-                        '<small>confidence: ' + escapeHtml(r.confidence) + '</small><br>' +
-                        '<a href="' + r.url + '">Open report</a>'
-                    ).addTo(map);
-                });
-        });
-    }
-
     function escapeHtml(s) {
         return String(s || '').replace(/[&<>"']/g, c => ({
             '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
         })[c]);
     }
 
-    // ── Status line ────────────────────────────────────
-    // Shows a short message between the toolbar and the map:
-    //   - count of matching locations when filters are active
-    //   - "no matches" message when filters are active and count is 0
-    //   - "no locations on this campus yet" when no filters and count is 0
-    //   - fetch error message when a refresh fails
-    // The element is server-rendered (hidden); this code populates its
-    // text and toggles visibility.
+    // ── Location rendering via Supercluster ────────────
+    // Active markers keyed by unique id, so we can diff on refresh.
+    //   individual location -> key: "loc:<location.id>"
+    //   cluster            -> key: "cluster:<cluster_id>"
+    const activeLocationMarkers = new Map();   // key -> { marker, kind }
 
+    let superclusterIndex = null;
+    let lastLocationPayloadSignature = null;
+
+    function buildSuperclusterIndex(locations) {
+        const features = locations.map(loc => ({
+            type: 'Feature',
+            properties: { ...loc },   // all fields preserved for popup
+            geometry: { type: 'Point', coordinates: [loc.lng, loc.lat] },
+        }));
+        const index = new window.Supercluster({
+            radius: 60,
+            maxZoom: 18,
+            minPoints: 2,
+        });
+        index.load(features);
+        return index;
+    }
+
+    function locationMarkerElement(loc) {
+        const el = document.createElement('div');
+        el.className = 'cos-location-marker';
+        el.style.cssText = 'width:14px;height:14px;border-radius:50%;background:#243B6B;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.3);cursor:pointer;';
+        el.dataset.name = loc.name;
+        el.tabIndex = 0;
+        el.setAttribute('role', 'button');
+        el.setAttribute('aria-label', loc.name);
+        return el;
+    }
+
+    function clusterMarkerElement(feature) {
+        const count = feature.properties.point_count;
+        const el = document.createElement('div');
+        el.className = 'cos-cluster';
+        el.style.cssText = 'width:32px;height:32px;border-radius:50%;background:#243B6B;color:#fff;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);cursor:pointer;';
+        el.textContent = count;
+        el.tabIndex = 0;
+        el.setAttribute('role', 'button');
+        el.setAttribute('aria-label', `Cluster of ${count} locations`);
+        return el;
+    }
+
+    function openLocationPopup(loc, lngLat) {
+        const detailUrl = '/map/location/' + loc.id;
+        popup.setLngLat(lngLat).setHTML(
+            '<strong>' + escapeHtml(loc.name) + '</strong><br>' +
+            '<small>' + escapeHtml(loc.category) + '</small>' +
+            (loc.description ? '<br>' + escapeHtml(loc.description) : '') +
+            '<br><a href="' + detailUrl + '">Open details</a>'
+        ).addTo(map);
+    }
+
+    function wireLocationMarker(markerEl, loc, lngLat) {
+        const open = () => openLocationPopup(loc, lngLat);
+        markerEl.addEventListener('click', open);
+        markerEl.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter' || ev.key === ' ') {
+                ev.preventDefault();
+                open();
+            }
+        });
+    }
+
+    function wireClusterMarker(markerEl, feature) {
+        const expand = () => {
+            const expansionZoom = superclusterIndex.getClusterExpansionZoom(feature.properties.cluster_id);
+            const coords = feature.geometry.coordinates;
+            map.flyTo({ center: coords, zoom: expansionZoom });
+            const statusEl = document.getElementById('map-status');
+            if (statusEl) {
+                statusEl.textContent = `Expanded cluster of ${feature.properties.point_count} locations.`;
+                statusEl.hidden = false;
+                // Hide again shortly after; the regular refresh will repopulate.
+                setTimeout(() => { statusEl.hidden = true; statusEl.textContent = ''; }, 2500);
+            }
+        };
+        markerEl.addEventListener('click', expand);
+        markerEl.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter' || ev.key === ' ') {
+                ev.preventDefault();
+                expand();
+            }
+        });
+    }
+
+    function clearLocationMarkers() {
+        activeLocationMarkers.forEach(({ marker }) => marker.remove());
+        activeLocationMarkers.clear();
+    }
+
+    // Compute the new set of markers to show, diff against existing.
+    function refreshLocationMarkers() {
+        if (!superclusterIndex) {
+            clearLocationMarkers();
+            return;
+        }
+        const zoom = Math.floor(map.getZoom());
+        const bounds = map.getBounds();
+        const bbox = [
+            bounds.getWest(), bounds.getSouth(),
+            bounds.getEast(), bounds.getNorth(),
+        ];
+        const clusters = superclusterIndex.getClusters(bbox, zoom);
+
+        const nextKeys = new Set();
+
+        clusters.forEach(feature => {
+            const [lng, lat] = feature.geometry.coordinates;
+            const isCluster = feature.properties.cluster === true;
+
+            const key = isCluster
+                ? `cluster:${feature.properties.cluster_id}`
+                : `loc:${feature.properties.id}`;
+
+            nextKeys.add(key);
+
+            if (activeLocationMarkers.has(key)) {
+                // Already rendered — do nothing (avoid flicker).
+                return;
+            }
+
+            if (isCluster) {
+                const el = clusterMarkerElement(feature);
+                wireClusterMarker(el, feature);
+                const m = new mapboxgl.Marker(el).setLngLat([lng, lat]).addTo(map);
+                activeLocationMarkers.set(key, { marker: m, kind: 'cluster' });
+            } else {
+                const loc = feature.properties;
+                const el = locationMarkerElement(loc);
+                wireLocationMarker(el, loc, [lng, lat]);
+                const m = new mapboxgl.Marker(el).setLngLat([lng, lat]).addTo(map);
+                activeLocationMarkers.set(key, { marker: m, kind: 'location' });
+            }
+        });
+
+        // Remove markers that are no longer in the current view.
+        activeLocationMarkers.forEach((entry, key) => {
+            if (!nextKeys.has(key)) {
+                entry.marker.remove();
+                activeLocationMarkers.delete(key);
+            }
+        });
+    }
+
+    // Direct (non-clustered) rendering for small filtered results.
+    function renderLocationMarkersDirect(locations) {
+        clearLocationMarkers();
+        locations.forEach(loc => {
+            if (loc.lat == null || loc.lng == null) return;
+            const el = locationMarkerElement(loc);
+            wireLocationMarker(el, loc, [loc.lng, loc.lat]);
+            const m = new mapboxgl.Marker(el).setLngLat([loc.lng, loc.lat]).addTo(map);
+            activeLocationMarkers.set(`loc:${loc.id}`, { marker: m, kind: 'location' });
+        });
+    }
+
+    // ── Pulse markers (unchanged behavior) ────────────
+    const activePulseMarkers = [];
+
+    function clearPulseMarkers() {
+        activePulseMarkers.forEach(m => m.remove());
+        activePulseMarkers.length = 0;
+    }
+
+    function renderPulseMarkers(reports) {
+        clearPulseMarkers();
+        const showPulse = document.getElementById('toggle-pulse')?.checked;
+        if (!showPulse) return;
+
+        reports.forEach(r => {
+            if (r.lat == null || r.lng == null) return;
+            const el = document.createElement('div');
+            el.className = 'cos-pulse-marker';
+            el.style.cssText = 'width:12px;height:12px;border-radius:50%;background:#19C3E6;border:2px solid #fff;cursor:pointer;';
+            el.title = r.category;
+
+            const marker = new mapboxgl.Marker(el)
+                .setLngLat([r.lng, r.lat])
+                .addTo(map);
+
+            marker.getElement().addEventListener('click', () => {
+                popup.setLngLat([r.lng, r.lat]).setHTML(
+                    '<strong>' + escapeHtml(r.category.replace(/_/g, ' ')) + '</strong><br>' +
+                    '<small>confidence: ' + escapeHtml(r.confidence) + '</small><br>' +
+                    '<a href="' + r.url + '">Open report</a>'
+                ).addTo(map);
+            });
+
+            activePulseMarkers.push(marker);
+        });
+    }
+
+    // ── Status line (unchanged) ───────────────────────
     function updateStatus(count) {
         const el = document.getElementById('map-status');
         if (!el) return;
-
-        const q = (document.getElementById('map-search')?.value || '').trim();
-        const cat = (document.getElementById('map-category')?.value || '').trim();
-        const hasFilters = q.length > 0 || cat.length > 0;
-
+        const hasFilters = filtersActive();
         let text = '';
-
         if (count > 0 && hasFilters) {
             text = count === 1
                 ? '1 location matches your search.'
@@ -171,8 +292,6 @@
         } else if (count === 0 && !hasFilters) {
             text = 'No locations on this campus yet.';
         }
-        // count > 0 && !hasFilters → no message (the map itself shows the markers).
-
         if (text) {
             el.textContent = text;
             el.hidden = false;
@@ -189,33 +308,45 @@
         el.hidden = false;
     }
 
-    async function refresh() {
+    // ── Refresh orchestration ─────────────────────────
+    async function loadAndRender() {
         const [locs, reports] = await Promise.all([loadLocations(), loadPulse()]);
-        renderMarkers(locs, reports);
+
+        // Locations
+        if (filtersActive() && locs.length <= 20) {
+            // Bypass clustering for small filtered results.
+            superclusterIndex = null;
+            lastLocationPayloadSignature = null;
+            renderLocationMarkersDirect(locs);
+        } else {
+            const signature = locs.length + '|' + locs.map(l => l.id).join(',');
+            if (signature !== lastLocationPayloadSignature) {
+                superclusterIndex = buildSuperclusterIndex(locs);
+                lastLocationPayloadSignature = signature;
+                clearLocationMarkers();   // payload changed; full reset
+            }
+            refreshLocationMarkers();
+        }
+
+        // Pulse (always fresh render, unchanged behavior)
+        renderPulseMarkers(reports);
+
         updateStatus(locs.length);
     }
 
-    map.on('load', refresh);
+    map.on('load', loadAndRender);
+
+    // Re-render clusters on map movement (not on every pan frame).
+    map.on('moveend', () => {
+        if (superclusterIndex) refreshLocationMarkers();
+    });
 
     function debounce(fn, ms) {
         let t;
         return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
     }
 
-    // ── Polling / re-entrancy ───────────────────────────
-    // The map refreshes:
-    //   - once on load (existing),
-    //   - on any user interaction with search/category/pulse (existing),
-    //   - on a 60s timer while the tab is visible (new),
-    //   - immediately when the tab becomes visible again (new).
-    //
-    // Re-entrancy rules:
-    //   - At most one network refresh in flight at a time.
-    //   - Automatic refreshes (timer, visibility) are skipped while one
-    //     is in flight — the next tick or the next focus will retry.
-    //   - User-initiated refreshes (search, category, pulse) are never
-    //     lost: if one is in flight, we set a pending flag and re-run
-    //     once the in-flight call resolves.
+    // ── Polling / re-entrancy (unchanged semantics) ───
     const POLL_INTERVAL_MS = 60000;
     let refreshInFlight = false;
     let pendingUserRefresh = false;
@@ -246,29 +377,19 @@
         }
     });
 
-    // Belt-and-braces: clear the timer on navigation away.
     window.addEventListener('pagehide', stopPoll);
-
-    // Start the poll once the map is loaded. The map's own `load`
-    // handler already kicks off the first refresh.
     map.on('load', schedulePoll);
 
-    // Expose the guard-aware refresh by wrapping the existing one.
-    // The existing `refresh()` becomes `_refreshOnce()` so it can be
-    // called internally by the wrapper.
-    const _refreshOnce = refresh;
+    const _refreshOnce = loadAndRender;
 
-    refresh = function (opts) {
+    function refresh(opts) {
         const userInitiated = !!(opts && opts.userInitiated);
-
         if (refreshInFlight) {
             if (userInitiated) pendingUserRefresh = true;
             return;
         }
-
         refreshInFlight = true;
 
-        // Clear any stale status while the fetch is in flight.
         const statusEl = document.getElementById('map-status');
         if (statusEl) {
             statusEl.hidden = true;
@@ -277,8 +398,6 @@
 
         _refreshOnce()
             .catch((err) => {
-                // Swallow network errors — the previous marker set stays
-                // visible. The next tick will retry.
                 console.warn('map refresh failed', err);
                 updateStatusError();
             })
@@ -289,10 +408,8 @@
                     refresh({ userInitiated: true });
                 }
             });
-    };
+    }
 
-    // Rewire the three existing interaction handlers to mark their
-    // refreshes as user-initiated, so they are never dropped.
     document.getElementById('map-search')?.addEventListener('input', debounce(() => refresh({ userInitiated: true }), 300));
     document.getElementById('map-category')?.addEventListener('change', () => refresh({ userInitiated: true }));
     document.getElementById('toggle-pulse')?.addEventListener('change', () => refresh({ userInitiated: true }));
