@@ -1,6 +1,11 @@
-﻿{% extends "layouts/app_shell.html" %}
+{% extends "layouts/app_shell.html" %}
 {% block title %}Home{% endblock %}
+{% block head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/home.css') }}">
+{% endblock %}
 {% block content %}
+<div class="home-page">
 
 <section class="greeting">
   <h1>Good day, {{ current_user.display_name.split()[0] }}</h1>
@@ -13,7 +18,7 @@
   </p>
 </section>
 
-<section class="card card--pad-lg" style="margin-top: var(--sp-4);">
+<section class="card card--pad-lg home-pulse" style="margin-top: var(--sp-4);">
   <div class="card__head">
     <div>
       <h2 class="card__title">Campus Pulse</h2>
@@ -67,7 +72,7 @@
     <h2 class="section__title">Quick actions</h2>
   </div>
   <div class="quick-grid">
-    <a class="quick-card" href="{{ url_for('maps.index') }}">
+    <a class="quick-card quick-card--map" href="{{ url_for('maps.index') }}">
       <span class="quick-card__icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14"/><path d="M15 6v14"/>
@@ -75,7 +80,7 @@
       </span>
       <span class="quick-card__label">Open map</span>
     </a>
-    <a class="quick-card" href="{{ url_for('events.index') }}">
+    <a class="quick-card quick-card--events" href="{{ url_for('events.index') }}">
       <span class="quick-card__icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h3"/>
@@ -84,7 +89,7 @@
       <span class="quick-card__label">Events</span>
       <span class="quick-card__sub">Discover campus events</span>
     </a>
-    <a class="quick-card" href="{{ url_for('pulse.report_new') }}">
+    <a class="quick-card quick-card--report" href="{{ url_for('pulse.report_new') }}">
       <span class="quick-card__icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 12h4l3-9 4 18 3-9h4"/>
@@ -92,7 +97,7 @@
       </span>
       <span class="quick-card__label">Post report</span>
     </a>
-    <div class="quick-card is-disabled">
+    <div class="quick-card quick-card--study is-disabled">
       <span class="quick-card__icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M4 4h16v16H4z"/><path d="M8 8h8"/><path d="M8 12h6"/>
@@ -101,7 +106,7 @@
       <span class="quick-card__label">Study</span>
       <span class="quick-card__sub">Coming soon</span>
     </div>
-    <div class="quick-card is-disabled">
+    <div class="quick-card quick-card--services is-disabled">
       <span class="quick-card__icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
@@ -112,5 +117,6 @@
     </div>
   </div>
 </section>
+</div>
 
 {% endblock %}

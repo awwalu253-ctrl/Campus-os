@@ -1,0 +1,177 @@
+/* =========================================================
+   CAMPUS OS — HOME DASHBOARD
+   Scoped styles only. Shared components remain untouched.
+   ========================================================= */
+
+.home-page {
+  --home-map: #57B8FF;
+  --home-map-bg: rgba(87, 184, 255, .22);
+  --home-events: #B68CFF;
+  --home-events-bg: rgba(182, 140, 255, .22);
+  --home-report: #26E6C1;
+  --home-report-bg: rgba(38, 230, 193, .20);
+  --home-study: #FFC45C;
+  --home-study-bg: rgba(255, 196, 92, .22);
+  --home-services: #52E0B0;
+  --home-services-bg: rgba(82, 224, 176, .22);
+}
+
+/* Welcome area */
+.home-page .greeting {
+  position: relative;
+  margin-bottom: var(--sp-5);
+  padding: var(--sp-2) 0 var(--sp-3);
+}
+
+.home-page .greeting h1 {
+  margin-bottom: 5px;
+  letter-spacing: -0.035em;
+}
+
+.home-page .greeting p {
+  margin: 0;
+}
+
+/* Campus Pulse */
+.home-page .home-pulse {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(38, 230, 193, .17), transparent 36%),
+    linear-gradient(135deg, var(--color-surface), var(--color-bg-2));
+  border-color: rgba(38, 230, 193, .36);
+  box-shadow: var(--shadow-1);
+}
+
+.home-page .home-pulse .card__title {
+  letter-spacing: -0.02em;
+}
+
+.home-page .home-pulse .card__head {
+  align-items: center;
+}
+
+.home-page .home-pulse .empty {
+  padding: var(--sp-5) var(--sp-4);
+}
+
+.home-page .home-pulse .empty__icon {
+  color: var(--color-primary);
+  background: rgba(38, 230, 193, .20);
+  border: 1px solid rgba(38, 230, 193, .28);
+}
+
+.home-page .home-pulse .empty__title {
+  font-size: var(--fs-md);
+}
+
+.home-page .home-pulse .btn--primary {
+  box-shadow: 0 5px 18px rgba(38, 230, 193, .24);
+}
+
+.home-page .home-pulse li:last-child {
+  border-bottom: 0 !important;
+}
+
+/* Quick action cards */
+.home-page .quick-grid {
+  gap: var(--sp-3);
+}
+
+.home-page .quick-card {
+  --quick-accent: var(--color-primary);
+  --quick-tint: var(--color-primary-soft);
+  position: relative;
+  min-height: 112px;
+  padding: var(--sp-4);
+  overflow: hidden;
+  background: linear-gradient(145deg, var(--quick-tint), var(--color-surface) 76%);
+  border-color: color-mix(in srgb, var(--quick-accent) 38%, var(--color-border));
+  transition: transform var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
+}
+
+.home-page .quick-card::after {
+  content: "";
+  position: absolute;
+  width: 76px;
+  height: 76px;
+  right: -30px;
+  bottom: -38px;
+  border-radius: 50%;
+  background: var(--quick-accent);
+  opacity: .12;
+  pointer-events: none;
+}
+
+.home-page .quick-card:hover:not(.is-disabled) {
+  transform: translateY(-3px);
+  border-color: var(--quick-accent);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .16);
+}
+
+.home-page .quick-card__icon {
+  color: var(--quick-accent);
+  background: var(--quick-tint);
+  border: 1px solid color-mix(in srgb, var(--quick-accent) 38%, transparent);
+}
+
+.home-page .quick-card__label {
+  display: block;
+  margin-top: var(--sp-2);
+  font-size: var(--fs-sm);
+  font-weight: 650;
+}
+
+.home-page .quick-card__sub {
+  line-height: 1.45;
+}
+
+/* Feature identities */
+.home-page .quick-card--map {
+  --quick-accent: var(--home-map);
+  --quick-tint: var(--home-map-bg);
+}
+
+.home-page .quick-card--events {
+  --quick-accent: var(--home-events);
+  --quick-tint: var(--home-events-bg);
+}
+
+.home-page .quick-card--report {
+  --quick-accent: var(--home-report);
+  --quick-tint: var(--home-report-bg);
+}
+
+.home-page .quick-card--study {
+  --quick-accent: var(--home-study);
+  --quick-tint: var(--home-study-bg);
+}
+
+.home-page .quick-card--services {
+  --quick-accent: var(--home-services);
+  --quick-tint: var(--home-services-bg);
+}
+
+.home-page .quick-card.is-disabled {
+  cursor: not-allowed;
+}
+
+@media (max-width: 639px) {
+  .home-page .quick-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-page .home-pulse {
+    padding: var(--sp-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-page .quick-card {
+    transition: none;
+  }
+
+  .home-page .quick-card:hover:not(.is-disabled) {
+    transform: none;
+  }
+}
