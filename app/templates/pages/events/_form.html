@@ -1,0 +1,54 @@
+﻿<div class="events-form-card">
+  <form method="post" class="events-form">
+    {{ form.hidden_tag() }}
+
+    <div class="events-field">
+      {{ form.title.label }}
+      {{ form.title(class="events-input", placeholder="e.g. Tech Meetup 2026") }}
+      {% for error in form.title.errors %}<span class="events-error">{{ error }}</span>{% endfor %}
+    </div>
+
+    <div class="events-field">
+      {{ form.description.label }}
+      {{ form.description(class="events-input events-textarea", placeholder="Tell people what this event is about…") }}
+      {% for error in form.description.errors %}<span class="events-error">{{ error }}</span>{% endfor %}
+    </div>
+
+    <div class="events-field">
+      {{ form.category.label }}
+      {{ form.category(class="events-input") }}
+      {% for error in form.category.errors %}<span class="events-error">{{ error }}</span>{% endfor %}
+    </div>
+
+    <div class="events-field">
+      {{ form.venue.label }}
+      {{ form.venue(class="events-input", placeholder="Building, hall or location") }}
+      {% for error in form.venue.errors %}<span class="events-error">{{ error }}</span>{% endfor %}
+    </div>
+
+    <div class="events-form-grid">
+      <div class="events-field">
+        {{ form.starts_at.label }}
+        {{ form.starts_at(class="events-input") }}
+        {% for error in form.starts_at.errors %}<span class="events-error">{{ error }}</span>{% endfor %}
+      </div>
+      <div class="events-field">
+        {{ form.ends_at.label }}
+        {{ form.ends_at(class="events-input") }}
+        {% for error in form.ends_at.errors %}<span class="events-error">{{ error }}</span>{% endfor %}
+      </div>
+    </div>
+
+    <div class="events-field">
+      {{ form.capacity.label }}
+      {{ form.capacity(class="events-input", placeholder="Leave blank for no limit", min="1") }}
+      {% for error in form.capacity.errors %}<span class="events-error">{{ error }}</span>{% endfor %}
+      <span class="events-field__hint">Optional. Leave blank if everyone can attend.</span>
+    </div>
+
+    <div class="events-form-actions">
+      <a class="events-button events-button--secondary" href="{{ url_for('events.index') }}">Cancel</a>
+      <button class="events-button events-button--primary" type="submit">{{ form.submit.label.text }}</button>
+    </div>
+  </form>
+</div>

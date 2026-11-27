@@ -1,0 +1,120 @@
+﻿{% extends "layouts/admin.html" %}
+
+{% block title %}Review Event{% endblock %}
+{% block page_title %}Review Event{% endblock %}
+
+{% set breadcrumb_items = [
+    {'label': 'Overview', 'url': url_for('admin.dashboard')},
+    {'label': 'Event Review', 'url': url_for('event_admin.review_queue')},
+    {'label': event.title}
+] %}
+
+{% block content %}
+
+<p style="margin-bottom: var(--sp-4);">
+  <a href="{{ url_for('event_admin.review_queue') }}"
+     class="admin-btn admin-btn--sm admin-btn--ghost">
+    Back to review queue
+  </a>
+</p>
+
+<section class="admin-panel">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">{{ event.title }}</h2>
+    <span class="admin-pill">Pending review</span>
+  </div>
+
+  <div class="admin-panel__body">
+    <dl class="admin-detail">
+      <dt>Category</dt>
+      <dd>{{ event.category.replace('_', ' ')|title }}</dd>
+
+      <dt>Organizer</dt>
+      <dd>{{ event.organizer.display_name }} ({{ event.organizer.email }})</dd>
+
+      <dt>University</dt>
+      <dd>{{ event.campus.university.name }}</dd>
+
+      <dt>Campus</dt>
+      <dd>{{ event.campus.name }}</dd>
+
+      <dt>Venue</dt>
+      <dd>{{ event.venue }}</dd>
+
+      <dt>Starts</dt>
+      <dd>
+        {{ event.starts_at|event_wat('%A, %d %B %Y at %I:%M %p') }}
+        WAT
+      </dd>
+
+      <dt>Ends</dt>
+      <dd>
+        {{ event.ends_at|event_wat('%A, %d %B %Y at %I:%M %p') }}
+        WAT
+      </dd>
+
+      <dt>Capacity</dt>
+      <dd>{{ event.capacity if event.capacity else 'Unlimited' }}</dd>
+
+      <dt>Submitted</dt>
+      <dd>{{ event.created_at|event_wat('%d %b %Y, %I:%M %p') }} WAT</dd>
+    </dl>
+
+    <div style="margin-top: var(--sp-4);">
+      <h3 class="admin-panel__title">Description</h3>
+      <div style="white-space: pre-wrap; line-height: 1.7;">{{ event.description }}</div>
+    </div>
+  </div>
+</section>
+
+<section class="admin-panel" style="margin-top: var(--sp-4);">
+  <div class="admin-panel__head">
+    <h2 class="admin-panel__title">Moderation decision</h2>
+  </div>
+
+  <div class="admin-panel__body">
+    <p class="muted">
+      Approving publishes this event to students at its campus.
+      Rejecting returns feedback to the organizer.
+    </p>
+
+    <div style="display:flex; flex-wrap:wrap; gap:var(--sp-3); margin-top:var(--sp-4);">
+      <form method="post"
+            action="{{ url_for('event_admin.approve', event_id=event.id) }}"
+            onsubmit="return confirm('Approve and publish this event?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="admin-btn admin-btn--primary">
+          Approve and publish
+        </button>
+      </form>
+    </div>
+
+    <div style="margin-top:var(--sp-4);">
+      <h3 class="admin-panel__title">Reject event</h3>
+
+      <form method="post"
+            action="{{ url_for('event_admin.reject', event_id=event.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <label for="reason">Reason for rejection</label>
+        <textarea
+          id="reason"
+          name="reason"
+          rows="4"
+          maxlength="1000"
+          required
+          class="admin-input"
+          placeholder="Explain what the organizer needs to correct..."
+          style="width:100%; margin-top:var(--sp-2);"></textarea>
+
+        <button type="submit"
+                class="admin-btn admin-btn--danger"
+                style="margin-top:var(--sp-3);">
+          Reject event
+        </button>
+      </form>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

@@ -80,6 +80,22 @@
         <span>Campus Pulse</span>
       </a>
 
+            <a href="{{ url_for('event_admin.review_queue') }}"
+         class="admin-nav__item {{ 'is-active' if request.endpoint and request.endpoint.startswith('event_admin') }}"
+         title="Event Review"
+         aria-label="Event Review"
+         {% if request.endpoint and request.endpoint.startswith('event_admin') %}aria-current="page"{% endif %}>
+        <svg class="admin-nav__icon" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true">
+          <rect x="3" y="4" width="18" height="17" rx="2"/>
+          <path d="M16 2v4M8 2v4M3 10h18"/>
+          <path d="m9 15 2 2 4-4"/>
+        </svg>
+        <span>Event Review</span>
+      </a>
+
       <a href="{{ url_for('admin.suggestions_list') }}"
          class="admin-nav__item {{ 'is-active' if request.endpoint and request.endpoint.startswith('admin.suggestions') }}"
          title="Location Suggestions"

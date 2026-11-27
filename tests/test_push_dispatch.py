@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from app import create_app as _create_app
-from app.auth import services as auth_services
+from app.auth import services as auth_services  
 from app.extensions import db
 from app.models import Campus, University
 from app.models.user import StudentProfile
@@ -212,3 +212,35 @@ def test_safety_report_queues_push_for_recipients(app, ctx, monkeypatch):
             db.session.commit()
 
             assert mock_dispatch.call_count == 1
+
+
+def test_rolled_back_push_is_not_dispatched_on_later_commit(app, ctx):
+    """A rolled-back push must not leak into a later transaction."""
+    with app.app_context():
+        monkeypatch_user_id = ctx["user_id"]
+
+        with patch("app.notifications.push.dispatch_for_notification") as mock_dispatch:
+            # Transaction A: queue a push notification, then roll it back.
+            rolled_back = notif_services.create_notification(
+                recipient_id=monkeypatch_user_id,
+                type=ntypes.CAMPUS_SAFETY_REPORT,
+                title="Must never be pushed",
+                dedupe_key=None,
+            )
+            db.session.rollback()
+
+            # Transaction B: commit an unrelated database change.
+            db.session.add(
+                University(
+                    slug=f"rollback-check-{uuid.uuid4().hex[:8]}",
+                    name="Rollback Check",
+                    short_name="RC",
+                )
+            )
+            db.session.commit()
+
+            # The rolled-back notification must never be dispatched.
+            assert mock_dispatch.call_count == 0
+
+            # It must also not exist in the database.
+            assert db.session.get(Notification, rolled_back.id) is None

@@ -1,44 +1,53 @@
-:root {
-  /* ── Color ─────────────────────────────────────────── */
-  --color-primary: #243B6B;
-  --color-primary-dark: #17233F;
-  --color-primary-soft: #EDF1F8;
-  --color-accent: #19C3E6;
-  --color-accent-dark: #0FA3C4;
-  --color-accent-soft: #E6F8FC;
+﻿:root {
+  /* Core palette */
+  --color-primary: #20C9B0;
+  --color-primary-dark: #0D9488;
+  --color-primary-soft: #173A42;
 
-  --color-bg: #F6F8FB;
-  --color-bg-2: #EEF1F6;
-  --color-surface: #FFFFFF;
+  --color-accent: #62B8FF;
+  --color-accent-dark: #3498DB;
+  --color-accent-soft: #172F49;
 
-  --color-border: #E7EAF0;
-  --color-border-strong: #D5DAE3;
+  --color-bg: #101C2C;
+  --color-bg-2: #142338;
+  --color-surface: #192A3D;
+  --color-surface-raised: #22364B;
 
-  --color-text: #172033;
-  --color-text-2: #667085;
-  --color-text-3: #98A2B3;
+  --color-border: #2D4258;
+  --color-border-strong: #405A73;
 
-  --color-success: #16A34A;
-  --color-success-bg: #ECFDF5;
-  --color-success-border: #A7F3D0;
+  --color-text: #F4F7FB;
+  --color-text-2: #9AAABD;
+  --color-text-3: #74879D;
 
-  --color-warning: #F59E0B;
-  --color-warning-bg: #FEF3C7;
-  --color-warning-border: #FDE68A;
+  /* Status colours */
+  --color-success: #22C55E;
+  --color-success-bg: #102D27;
+  --color-success-border: #1D5944;
 
-  --color-danger: #DC2626;
-  --color-danger-bg: #FEF2F2;
-  --color-danger-border: #FECACA;
+  --color-warning: #FBBF24;
+  --color-warning-bg: #332A17;
+  --color-warning-border: #70521E;
 
-  --color-info: #2563EB;
-  --color-info-bg: #EFF6FF;
-  --color-info-border: #BFDBFE;
+  --color-danger: #F87171;
+  --color-danger-bg: #351D29;
+  --color-danger-border: #713044;
 
-  /* ── Spacing ───────────────────────────────────────── */
-  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;
-  --sp-4: 16px; --sp-5: 24px; --sp-6: 32px; --sp-7: 48px; --sp-8: 64px;
+  --color-info: #60A5FA;
+  --color-info-bg: #172A45;
+  --color-info-border: #294D77;
 
-  /* ── Radius ────────────────────────────────────────── */
+  /* Spacing */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
+
+  /* Radius */
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -46,13 +55,13 @@
   --radius-xl: 18px;
   --radius-pill: 999px;
 
-  /* ── Shadows ───────────────────────────────────────── */
-  --shadow-1: 0 1px 2px rgba(23, 32, 51, .04);
-  --shadow-2: 0 4px 16px rgba(23, 32, 51, .06);
-  --shadow-3: 0 12px 32px rgba(23, 32, 51, .10);
-  --shadow-focus: 0 0 0 3px rgba(25, 195, 230, .22);
+  /* Shadows */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .20);
+  --shadow-2: 0 4px 16px rgba(0, 0, 0, .24);
+  --shadow-3: 0 12px 32px rgba(0, 0, 0, .32);
+  --shadow-focus: 0 0 0 3px rgba(32, 201, 176, .24);
 
-  /* ── Typography ────────────────────────────────────── */
+  /* Typography */
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
@@ -70,14 +79,15 @@
   --lh-snug: 1.35;
   --lh-base: 1.55;
 
-  /* ── Layout ────────────────────────────────────────── */
+  /* Layout */
   --shell-max: 1120px;
   --bottom-nav-h: 64px;
   --topbar-h: 56px;
   --sidebar-w: 248px;
 
-  /* ── Motion ────────────────────────────────────────── */
+  /* Motion */
   --t-fast: 120ms ease;
   --t-base: 180ms ease;
   --t-slow: 280ms cubic-bezier(.2,.8,.2,1);
 }
+

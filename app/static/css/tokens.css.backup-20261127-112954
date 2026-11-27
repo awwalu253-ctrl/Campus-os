@@ -1,0 +1,92 @@
+﻿:root {
+  /* Core palette */
+  --color-primary: #6C7DF7;
+  --color-primary-dark: #0A0F1E;
+  --color-primary-soft: #202C43;
+
+  --color-accent: #00D4FF;
+  --color-accent-dark: #00AFCF;
+  --color-accent-soft: #103044;
+
+  --color-bg: #0A0F1E;
+  --color-bg-2: #10182A;
+  --color-surface: #141D32;
+  --color-surface-raised: #202C43;
+
+  --color-border: #29364D;
+  --color-border-strong: #3B4B65;
+
+  --color-text: #F4F7FC;
+  --color-text-2: #A0AEC0;
+  --color-text-3: #74839B;
+
+  /* Status colours */
+  --color-success: #22C55E;
+  --color-success-bg: #102D27;
+  --color-success-border: #1D5944;
+
+  --color-warning: #FBBF24;
+  --color-warning-bg: #332A17;
+  --color-warning-border: #70521E;
+
+  --color-danger: #F87171;
+  --color-danger-bg: #351D29;
+  --color-danger-border: #713044;
+
+  --color-info: #60A5FA;
+  --color-info-bg: #172A45;
+  --color-info-border: #294D77;
+
+  /* Spacing */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
+
+  /* Radius */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-pill: 999px;
+
+  /* Shadows */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .20);
+  --shadow-2: 0 4px 16px rgba(0, 0, 0, .24);
+  --shadow-3: 0 12px 32px rgba(0, 0, 0, .32);
+  --shadow-focus: 0 0 0 3px rgba(0, 212, 255, .24);
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --fs-2xs: 11px;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 15px;
+  --fs-lg: 17px;
+  --fs-xl: 20px;
+  --fs-2xl: 24px;
+  --fs-3xl: 32px;
+  --fs-4xl: 42px;
+
+  --lh-tight: 1.15;
+  --lh-snug: 1.35;
+  --lh-base: 1.55;
+
+  /* Layout */
+  --shell-max: 1120px;
+  --bottom-nav-h: 64px;
+  --topbar-h: 56px;
+  --sidebar-w: 248px;
+
+  /* Motion */
+  --t-fast: 120ms ease;
+  --t-base: 180ms ease;
+  --t-slow: 280ms cubic-bezier(.2,.8,.2,1);
+}

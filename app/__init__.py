@@ -72,6 +72,8 @@ def create_app(config_name: str | None = None) -> Flask:
     from app.maps import models as _maps_models  # noqa: F401
     from app.notifications import models as _notifications_models  # noqa: F401
     from app.tasks import models as _tasks_models  # noqa: F401
+    from app.events import models as _events_models
+    from app.models import staff as _staff_models
 
     # ── Blueprints ──────────────────────────────────────
     from app.auth.routes import bp as auth_bp
@@ -85,6 +87,8 @@ def create_app(config_name: str | None = None) -> Flask:
     from app.maps.routes import bp as maps_bp
     from app.notifications.routes import bp as notifications_bp
     from app.notifications.routes import page_bp as notifications_page_bp
+    from app.events.routes import bp as events_bp
+    from app.events.admin_routes import admin_bp as event_admin_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(users_bp)
@@ -97,6 +101,8 @@ def create_app(config_name: str | None = None) -> Flask:
     app.register_blueprint(maps_bp)
     app.register_blueprint(notifications_bp)
     app.register_blueprint(notifications_page_bp)
+    app.register_blueprint(events_bp)
+    app.register_blueprint(event_admin_bp)
 
     # ── Error handlers ──────────────────────────────────
     from app.core import errors

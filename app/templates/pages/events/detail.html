@@ -1,0 +1,86 @@
+﻿{% extends "layouts/app_shell.html" %}
+{% block title %}Event details{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/events.css') }}">
+{% endblock %}
+{% block content %}
+<div class="events-page events-page--detail">
+  <a class="events-back" href="{{ url_for('events.index') }}">← Back to events</a>
+
+  <article class="event-detail">
+    <div class="event-detail__top">
+      <span class="event-category">{{ event.category.replace('_', ' ').title() }}</span>
+      {% if event.status == 'published' %}
+        <span class="event-status event-status--published">Published</span>
+      {% elif event.status == 'pending_review' %}
+        <span class="event-status event-status--pending">Under review</span>
+      {% elif event.status == 'rejected' %}
+        <span class="event-status event-status--rejected">Rejected</span>
+      {% else %}
+        <span class="event-status event-status--draft">Draft</span>
+      {% endif %}
+    </div>
+
+    <h1>{{ event.title }}</h1>
+    <div class="event-detail__description">{{ event.description }}</div>
+
+    <div class="event-detail__facts">
+      <div class="event-fact">
+        <span class="event-fact__label">DATE</span>
+        <strong>{{ event.starts_at|event_wat('%A, %B %d, %Y') }}</strong>
+      </div>
+      <div class="event-fact">
+        <span class="event-fact__label">TIME</span>
+        <strong>{{ event.starts_at|event_wat('%I:%M %p') }} – {{ event.ends_at|event_wat('%I:%M %p') }}</strong>
+      </div>
+      <div class="event-fact">
+        <span class="event-fact__label">LOCATION</span>
+        <strong>{{ event.venue }}</strong>
+      </div>
+      <div class="event-fact">
+        <span class="event-fact__label">CAPACITY</span>
+        <strong>{{ event.capacity if event.capacity else 'No limit specified' }}</strong>
+      </div>
+    </div>
+
+    <div class="event-detail__organizer">
+      <span class="event-detail__organizer-label">Organised by</span>
+      <strong>{{ event.organizer.display_name if event.organizer else 'Campus organiser' }}</strong>
+    </div>
+
+    {% if event.status == 'rejected' and event.organizer_id == current_user.id and event.rejection_reason %}
+      <div class="event-rejection">
+        <strong>Review feedback</strong>
+        <p>{{ event.rejection_reason }}</p>
+      </div>
+    {% endif %}
+
+    <div class="event-detail__actions">
+      {% if event.organizer_id == current_user.id %}
+        <a class="events-create" href="{{ url_for('events.edit', event_id=event.id) }}">Edit event</a>
+        {% if event.status in ('draft', 'rejected') %}
+          <form method="post" action="{{ url_for('events.submit', event_id=event.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="events-button events-button--primary" type="submit">Submit for review</button>
+          </form>
+        {% endif %}
+      {% elif event.status == 'published' %}
+        {% if rsvp %}
+          <form method="post" action="{{ url_for('events.cancel_rsvp', event_id=event.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="events-button events-button--secondary" type="submit">Cancel registration</button>
+          </form>
+          <span class="event-status event-status--published">You're registered</span>
+        {% else %}
+          <form method="post" action="{{ url_for('events.rsvp', event_id=event.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="events-button events-button--primary" type="submit">Register for event</button>
+          </form>
+        {% endif %}
+      {% endif %}
+    </div>
+  </article>
+</div>
+{% endblock %}
+
+

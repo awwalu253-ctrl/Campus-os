@@ -36,6 +36,29 @@ def _current_campus_id() -> str:
     return None
 
 
+def _is_staff() -> bool:
+    return current_user.role in ("platform_admin", "campus_admin", "moderator")
+
+
+def _ensure_report_accessible(report) -> None:
+    """Abort 404 if the report is unreachable for the current user.
+
+    Rules (Batch 1):
+      - Missing report              -> 404
+      - Cross-campus                -> 404 (campus isolation)
+      - moderation_status="removed" -> 404 (any user)
+      - moderation_status="hidden"  -> 404 unless staff
+    """
+    if report is None:
+        abort(404)
+    if report.campus_id != _current_campus_id():
+        abort(404)
+    if report.moderation_status == "removed":
+        abort(404)
+    if report.moderation_status == "hidden" and not _is_staff():
+        abort(404)
+
+
 def _get_unique_valid_general_campus_area(campus_id: str) -> Location | None:
     """Return the single valid General Campus Area for this campus, or None.
 
@@ -207,8 +230,7 @@ def report_new():
 @login_required
 def report_detail(report_id):
     report = services.get_report(report_id)
-    if not report or report.moderation_status == "removed":
-        abort(404)
+    _ensure_report_accessible(report)
     meta = categories.get(report.category)
     return render_template("pages/pulse/report_detail.html",
                            report=report, meta=meta)
@@ -218,8 +240,7 @@ def report_detail(report_id):
 @login_required
 def confirm(report_id):
     report = services.get_report(report_id)
-    if not report:
-        abort(404)
+    _ensure_report_accessible(report)
     try:
         services.confirm_report(report=report, user=current_user)
         db.session.commit()
@@ -234,8 +255,7 @@ def confirm(report_id):
 @login_required
 def disagree(report_id):
     report = services.get_report(report_id)
-    if not report:
-        abort(404)
+    _ensure_report_accessible(report)
     try:
         services.disagree_report(report=report, user=current_user)
         db.session.commit()
@@ -250,8 +270,7 @@ def disagree(report_id):
 @login_required
 def flag(report_id):
     report = services.get_report(report_id)
-    if not report:
-        abort(404)
+    _ensure_report_accessible(report)
     reason = request.form.get("reason", "").strip()
     try:
         services.flag_report(report=report, user=current_user, reason=reason)

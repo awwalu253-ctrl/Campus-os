@@ -1,0 +1,16 @@
+﻿{% extends "layouts/app_shell.html" %}
+{% block title %}Edit event{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/events.css') }}">
+{% endblock %}
+{% block content %}
+<div class="events-page events-page--form">
+  <a class="events-back" href="{{ url_for('events.detail', event_id=event.id) }}">← Back to event</a>
+  <header class="events-form-heading">
+    <span class="events-eyebrow">EVENT MANAGEMENT</span>
+    <h1>Edit event</h1>
+    <p>Update the details below.</p>
+  </header>
+  {% include "pages/events/_form.html" %}
+</div>
+{% endblock %}

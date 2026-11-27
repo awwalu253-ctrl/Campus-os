@@ -1,0 +1,16 @@
+﻿{% extends "layouts/app_shell.html" %}
+{% block title %}Create event{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/events.css') }}">
+{% endblock %}
+{% block content %}
+<div class="events-page events-page--form">
+  <a class="events-back" href="{{ url_for('events.index') }}">← Back to events</a>
+  <header class="events-form-heading">
+    <span class="events-eyebrow">GET YOUR CAMPUS TOGETHER</span>
+    <h1>Create an event</h1>
+    <p>Start with a draft. Submit it for review when you're ready.</p>
+  </header>
+  {% include "pages/events/_form.html" %}
+</div>
+{% endblock %}

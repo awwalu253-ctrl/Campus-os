@@ -1,0 +1,76 @@
+﻿{% extends "layouts/admin.html" %}
+
+{% block title %}Event Review Queue{% endblock %}
+{% block page_title %}Event Review Queue{% endblock %}
+
+{% set breadcrumb_items = [
+    {'label': 'Overview', 'url': url_for('admin.dashboard')},
+    {'label': 'Event Review'}
+] %}
+
+{% block content %}
+
+<section class="admin-panel">
+  <div class="admin-panel__head">
+    <div>
+      <h2 class="admin-panel__title">Pending Events</h2>
+      <p class="muted">Review student-submitted events before they appear on Campus OS.</p>
+    </div>
+    <span class="admin-pill">{{ events|length }} pending</span>
+  </div>
+
+  <div class="admin-panel__body">
+    {% if events %}
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Event</th>
+              <th>Campus</th>
+              <th>Organizer</th>
+              <th>Starts</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for event in events %}
+              <tr>
+                <td>
+                  <strong>{{ event.title }}</strong>
+                  <div class="muted">
+                    {{ event.category.replace('_', ' ')|title }}
+                  </div>
+                </td>
+                <td>
+                  {{ event.campus.name }}
+                  <div class="muted">{{ event.campus.university.short_name }}</div>
+                </td>
+                <td>{{ event.organizer.display_name }}</td>
+                <td>
+                  {{ event.starts_at|event_wat('%d %b %Y') }}
+                  <div class="muted">
+                    {{ event.starts_at|event_wat('%I:%M %p') }}
+                  </div>
+                </td>
+                <td>
+                  <a
+                    href="{{ url_for('event_admin.detail', event_id=event.id) }}"
+                    class="admin-btn admin-btn--sm admin-btn--primary">
+                    Review
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="admin-empty">
+        <h3>No pending events</h3>
+        <p>There are currently no events waiting for moderation.</p>
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}

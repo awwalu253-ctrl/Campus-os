@@ -1,4 +1,4 @@
-{% extends "layouts/app_shell.html" %}
+﻿{% extends "layouts/app_shell.html" %}
 {% block title %}Home{% endblock %}
 {% block content %}
 
@@ -45,7 +45,7 @@
               </div>
               {% if r.description %}
                 <div class="muted" style="font-size:var(--fs-sm); margin-top:2px;">
-                  {{ r.description[:80] }}{% if r.description|length > 80 %}…{% endif %}
+                  {{ r.description[:80] }}{% if r.description|length > 80 %}â€¦{% endif %}
                 </div>
               {% endif %}
             </div>
@@ -74,6 +74,15 @@
         </svg>
       </span>
       <span class="quick-card__label">Open map</span>
+    </a>
+    <a class="quick-card" href="{{ url_for('events.index') }}">
+      <span class="quick-card__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h3"/>
+        </svg>
+      </span>
+      <span class="quick-card__label">Events</span>
+      <span class="quick-card__sub">Discover campus events</span>
     </a>
     <a class="quick-card" href="{{ url_for('pulse.report_new') }}">
       <span class="quick-card__icon">

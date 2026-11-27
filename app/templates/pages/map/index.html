@@ -1,11 +1,11 @@
-{# app/templates/pages/map/index.html #}
+﻿{# app/templates/pages/map/index.html #}
 {% extends "layouts/app_shell.html" %}
 {% block title %}Map{% endblock %}
 {% block head %}
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.css" rel="stylesheet">
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.js"></script>
   <script src="{{ url_for('static', filename='js/vendor/supercluster.min.js') }}" defer></script>
-  <script src="{{ url_for('static', filename='js/map.js') }}?v={{ config.get('ASSET_VERSION', '1') }}" defer></script>
+
   <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/map.css') }}">
 {% endblock %}
 
@@ -18,7 +18,7 @@
 {% set has_usable_data = has_coords or has_approved_locations %}
 
 {% if has_usable_data %}
-  {# ── Normal map layout ──────────────────────────────── #}
+  {# â”€â”€ Normal map layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ #}
   <div class="map-toolbar">
     <input id="map-search" type="search" placeholder="Search locations..." autocomplete="off">
     <select id="map-category">
@@ -44,7 +44,7 @@
     <label><input type="checkbox" id="toggle-pulse" checked> Show live Pulse</label>
   </div>
 {% else %}
-  {# ── Empty state ───────────────────────────────────── #}
+  {# â”€â”€ Empty state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ #}
   <div class="map-empty-state">
     <div class="map-empty-state__inner">
       <h2 class="map-empty-state__title">

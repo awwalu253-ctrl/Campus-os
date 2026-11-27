@@ -22,8 +22,6 @@ def compute_confidence(report: CampusReport) -> str:
 
     Heuristic:
       - Base on confirmation_count minus disagreement_count
-      - Weight slightly by age (older reports less confident unless
-        recently re-confirmed — simplified here)
       - Penalize by flag_count
 
     Returns 'low' | 'medium' | 'high'.
@@ -36,6 +34,18 @@ def compute_confidence(report: CampusReport) -> str:
     if score >= 2:
         return "medium"
     return "low"
+
+
+# ── Interaction eligibility (Batch 1) ────────────────────
+def _assert_interactable(report: CampusReport) -> None:
+    """Raise ValueError if the report is not eligible for interaction.
+
+    Batch 1: only active + visible reports accept confirm/disagree/flag.
+    """
+    if report.status != "active":
+        raise ValueError("This report is no longer active.")
+    if report.moderation_status != "visible":
+        raise ValueError("This report is not available for interaction.")
 
 
 # ── Create ────────────────────────────────────────────────
@@ -141,8 +151,7 @@ def _existing_confirmation(report_id: str, user_id: str) -> ReportConfirmation |
 def confirm_report(*, report: CampusReport, user: User) -> ReportConfirmation:
     if report.reported_by == user.id:
         raise ValueError("You can't confirm your own report.")
-    if report.status != "active":
-        raise ValueError("This report is no longer active.")
+    _assert_interactable(report)
 
     existing = _existing_confirmation(report.id, user.id)
     if existing and existing.kind == "confirm":
@@ -198,8 +207,7 @@ def confirm_report(*, report: CampusReport, user: User) -> ReportConfirmation:
 def disagree_report(*, report: CampusReport, user: User) -> None:
     if report.reported_by == user.id:
         raise ValueError("You can't disagree with your own report.")
-    if report.status != "active":
-        raise ValueError("This report is no longer active.")
+    _assert_interactable(report)
 
     existing = _existing_confirmation(report.id, user.id)
     if existing and existing.kind == "disagree":
@@ -237,54 +245,11 @@ def disagree_report(*, report: CampusReport, user: User) -> None:
             dedupe_key=f"report-disagreement:{report.id}:{user.id}",
         )
 
-    if reporter and reporter.id != user.id:
-        cat_meta = categories.get(report.category) or {}
-        cat_label = cat_meta.get("label", report.category.replace("_", " "))
-        notifications.create_notification_if_new(
-            recipient_id=reporter.id,
-            type=ntypes.REPORT_DISAGREEMENT,
-            title="Someone disagreed with your report",
-            body=f"A student disagreed with your report about \"{cat_label}\".",
-            action_url=f"/pulse/report/{report.id}",
-            campus_id=report.campus_id,
-            related_entity_type="campus_report",
-            related_entity_id=report.id,
-            dedupe_key=f"report-disagreement:{report.id}:{user.id}",
-        )
-
-    if reporter and reporter.id != user.id:
-        cat_meta = categories.get(report.category) or {}
-        cat_label = cat_meta.get("label", report.category.replace("_", " "))
-        notifications.create_notification_if_new(
-            recipient_id=reporter.id,
-            type=ntypes.REPORT_DISAGREEMENT,
-            title="Someone disagreed with your report",
-            body=f"A student disagreed with your report about \"{cat_label}\".",
-            action_url=f"/pulse/report/{report.id}",
-            campus_id=report.campus_id,
-            related_entity_type="campus_report",
-            related_entity_id=report.id,
-            dedupe_key=f"report-disagreement:{report.id}:{user.id}",
-        )
-
-    if reporter and reporter.id != user.id:
-        cat_meta = categories.get(report.category) or {}
-        cat_label = cat_meta.get("label", report.category.replace("_", " "))
-        notifications.create_notification_if_new(
-            recipient_id=reporter.id,
-            type=ntypes.REPORT_DISAGREEMENT,
-            title="Someone disagreed with your report",
-            body=f"A student disagreed with your report about \"{cat_label}\".",
-            action_url=f"/pulse/report/{report.id}",
-            campus_id=report.campus_id,
-            related_entity_type="campus_report",
-            related_entity_id=report.id,
-            dedupe_key=f"report-disagreement:{report.id}:{user.id}",
-        )
-
 
 # ── Flag ──────────────────────────────────────────────────
 def flag_report(*, report: CampusReport, user: User, reason: str | None = None) -> None:
+    _assert_interactable(report)
+
     existing = ReportFlag.query.filter_by(report_id=report.id, user_id=user.id).first()
     if existing:
         raise ValueError("You already flagged this report.")
